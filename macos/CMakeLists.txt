@@ -35,6 +35,7 @@ set(FF7_LAUNCHER_SOURCES
   "${FF7_ROOT}/src/mac/launcher/Achievements.swift"
   "${FF7_ROOT}/src/mac/launcher/Steam.swift"
   "${FF7_ROOT}/src/mac/launcher/Keymap.swift"
+  "${FF7_ROOT}/src/mac/launcher/Theme.swift"
   "${FF7_ROOT}/src/mac/launcher/GameOverlay.swift"
   "${FF7_ROOT}/src/mac/launcher/GameFiles.swift"
   "${FF7_ROOT}/src/mac/launcher/TVMode.swift"

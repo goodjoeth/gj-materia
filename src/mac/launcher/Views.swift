@@ -165,6 +165,7 @@ struct LauncherView: View {
             }
         }
         .frame(minWidth: 980, minHeight: 640)
+        .tint(Theme.gold)
     }
 }
 
@@ -218,6 +219,53 @@ struct UpdatesBanner: View {
     }
 }
 
+/// Names as small gold-edged chips, wrapped onto lines.
+struct FlowChips: View {
+    let items: [String]
+    var body: some View {
+        FlowLayout(spacing: 6) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, t in
+                Text(t).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .foregroundStyle(Theme.goldLight.opacity(0.9))
+                    .background(Capsule().fill(.black.opacity(0.45)))
+                    .overlay(Capsule().strokeBorder(Theme.gold.opacity(0.3), lineWidth: 1))
+            }
+        }
+    }
+}
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(proposal.width ?? 600, subviews)
+        return CGSize(width: proposal.width ?? rows.map { $0.width }.max() ?? 0, height: rows.reduce(0) { $0 + $1.height } + spacing * CGFloat(max(0, rows.count - 1)))
+    }
+    func placeSubviews(in b: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = b.minY
+        for row in arrange(b.width, subviews) {
+            var x = b.minX + (b.width - row.width) / 2                    // each line centred
+            for i in row.items {
+                let sz = subviews[i].sizeThatFits(.unspecified)
+                subviews[i].place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+                x += sz.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+    private func arrange(_ width: CGFloat, _ subviews: Subviews) -> [(items: [Int], width: CGFloat, height: CGFloat)] {
+        var rows: [(items: [Int], width: CGFloat, height: CGFloat)] = [([], 0, 0)]
+        for i in subviews.indices {
+            let sz = subviews[i].sizeThatFits(.unspecified)
+            if !rows[rows.count - 1].items.isEmpty && rows[rows.count - 1].width + spacing + sz.width > width { rows.append(([], 0, 0)) }
+            var r = rows[rows.count - 1]
+            r.width += (r.items.isEmpty ? 0 : spacing) + sz.width; r.height = max(r.height, sz.height); r.items.append(i)
+            rows[rows.count - 1] = r
+        }
+        return rows
+    }
+}
+
 struct PlayView: View {
     @ObservedObject var state: LauncherState
     @ObservedObject var library: ModLibrary
@@ -226,31 +274,38 @@ struct PlayView: View {
     @State private var reportError: String?
 
     var body: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            Text("FINAL FANTASY VII").font(.system(size: 40, weight: .bold, design: .serif))
-            Text("GJ Materia · by Good JOE").foregroundStyle(.secondary)
+        VStack(spacing: 18) {
+            Spacer(minLength: 12)
+            #if os(macOS)
+            Image(nsImage: NSApp.applicationIconImage).resizable().interpolation(.high)
+                .frame(width: 112, height: 112).shadow(color: .black.opacity(0.6), radius: 12, y: 6)
+            #endif
+            VStack(spacing: 6) {
+                GoldText(text: "FINAL FANTASY VII", size: 42)
+                Text("GJ MATERIA  ·  BY GOOD JOE").font(.system(size: 12, weight: .semibold)).tracking(3)
+                    .foregroundStyle(Theme.goldLight.opacity(0.7))
+            }
             if !Paths.gameReady || state.gameFiles.dataLinkedTo != nil || !state.gameFiles.exeMatches {
-                GameFilesBox(files: state.gameFiles)
+                GameFilesBox(files: state.gameFiles).glassCard().frame(maxWidth: 640)
             }
-            Picker("เริ่มที่", selection: $state.settings.start) {
-                Text("หน้าไตเติล").tag("title")
-                Text("เกมใหม่ทันที").tag("newgame")
-                Text("เล่นต่อจากเซฟล่าสุด").tag("continue")
-            }
-            .pickerStyle(.segmented).labelsHidden().frame(width: 420)
+            GoldChoice(selection: $state.settings.start, options: [("title", "หน้าไตเติล"), ("newgame", "เกมใหม่ทันที"), ("continue", "เล่นต่อจากเซฟล่าสุด")])
             Button(action: state.play) {
-                Label("เล่น", systemImage: "play.fill").font(.title2).frame(width: 200, height: 36)
+                Label("เล่น", systemImage: "play.fill")
             }
-            .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+            .buttonStyle(CrimsonButtonStyle()).keyboardShortcut(.defaultAction)
             .disabled(!Paths.gameReady || !state.gameFiles.exeMatches)
             let on = library.mods.filter { $0.enabled }
-            Text(on.isEmpty ? "ไม่มีม็อดที่เปิดใช้" : "ม็อดที่เปิดใช้ \(on.count) ตัว: " + on.prefix(4).map { $0.title }.joined(separator: ", ") + (on.count > 4 ? " …" : ""))
-                .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 560)
+            VStack(spacing: 8) {
+                Text(on.isEmpty ? "ไม่มีม็อดที่เปิดใช้" : "ม็อดที่เปิดใช้ \(on.count) ตัว").font(.caption.weight(.semibold)).foregroundStyle(Theme.gold)
+                if !on.isEmpty {
+                    FlowChips(items: on.prefix(8).map { $0.title } + (on.count > 8 ? ["+\(on.count - 8)"] : []))
+                }
+            }
+            .frame(maxWidth: 640)
             if let e = library.lastError { Text(e).foregroundStyle(.red) }
             UpdatesBanner(catalog: state.catalog, library: library, downloads: state.downloads)
             Spacer()
-            Text("มีจอย? กดปุ่มใดก็ได้บนจอยเพื่อเข้าโหมดทีวี").font(.caption).foregroundStyle(.secondary)
+            Text("มีจอย? กดปุ่มใดก็ได้บนจอยเพื่อเข้าโหมดทีวี").font(.caption).foregroundStyle(Theme.goldLight.opacity(0.6))
             HStack {
                 Button("เปิดโฟลเดอร์เกม") { openURL(Paths.base) }
                 Button("เปิด log ล่าสุด") { openURL(Paths.log) }
@@ -260,7 +315,7 @@ struct PlayView: View {
                 }
                 .help("รวม log ตั้งค่า และรายการม็อดเป็นไฟล์ .zip ไฟล์เดียว (ไม่มีไฟล์เกมและข้อมูลบัญชี Steam) แนบไปกับรายงานบั๊กได้เลย")
             }
-            .buttonStyle(.link).padding(.bottom)
+            .buttonStyle(.link).tint(Theme.goldLight).padding(.bottom)
             .fileExporter(isPresented: Binding(get: { reportDoc != nil }, set: { if !$0 { reportDoc = nil } }), document: reportDoc,
                           contentType: .zip, defaultFilename: "GJMateria-report.zip") { _ in reportDoc = nil }
             .alert("กำลังเล่นอยู่ที่เครื่องอื่น?", isPresented: Binding(get: { state.otherPlaying != nil }, set: { if !$0 { state.otherPlaying = nil } })) {
@@ -274,6 +329,7 @@ struct PlayView: View {
             } message: { Text(reportError ?? "") }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(MeteorSky())
         .navigationTitle("เล่น")
     }
 }
@@ -1145,6 +1201,7 @@ public func ff7_launcher_show() {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 720),
                          styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         w.title = "GJ Materia"
+        w.appearance = NSAppearance(named: .darkAqua)   // the launcher is dark, as the game and its icon
         w.contentViewController = NSHostingController(rootView: LauncherView(state: s, downloads: s.downloads))
         w.setContentSize(NSSize(width: 1080, height: 720))
         w.isReleasedWhenClosed = false
