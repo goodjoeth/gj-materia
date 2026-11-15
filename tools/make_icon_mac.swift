@@ -1,5 +1,5 @@
 // make_icon_mac.swift - draws the GJ Materia icon (1024x1024 PNG): a red Meteor hanging in a dark
-// sky, a three-barrelled revolver across it (Vincent's colours: gunmetal and gold) with "GJ" on
+// sky, a three-barrelled revolver across it (Vincent's colours: gunmetal and gold) with Good JOE's logo on
 // the grip, a large "VII" behind it, and a red cloak's torn edge along the bottom. An original drawing, nothing from the
 // game. tools/make_icon_mac.sh turns it into macos/icon/AppIcon.icns.
 //   swift tools/make_icon_mac.swift out.png
@@ -173,21 +173,19 @@ for k in 0..<3 {
     ctx.addPath(rr(-132, -44 + CGFloat(k) * 34, 124, 18, 9)); ctx.setFillColor(rgb(0.08, 0.08, 0.1, 0.55)); ctx.fillPath()
 }
 ctx.addPath(cyl); ctx.setStrokeColor(goldLine); ctx.setLineWidth(7); ctx.strokePath()
-// "GJ" on the grip, in gold
-let font = CTFontCreateWithName("Didot-Bold" as CFString, 66, nil)
-let line = CTLineCreateWithAttributedString(NSAttributedString(string: "GJ", attributes: [
-    NSAttributedString.Key(kCTFontAttributeName as String): font,
-    NSAttributedString.Key(kCTForegroundColorAttributeName as String): rgb(0.97, 0.8, 0.4)]))
-ctx.saveGState()
-ctx.translateBy(x: -268, y: -125)
-ctx.rotate(by: 1.33)
-ctx.textPosition = .zero   // image bounds are measured from the current text position
-let tb = CTLineGetImageBounds(line, ctx)
-ctx.textPosition = CGPoint(x: -tb.width / 2 - tb.minX, y: -tb.height / 2 - tb.minY)
-ctx.setShadow(offset: CGSize(width: 0, height: -2), blur: 3, color: rgb(0, 0, 0, 0.9))
-ctx.setTextDrawingMode(.fill)
-CTLineDraw(line, ctx)
-ctx.restoreGState()
+// Good JOE's logo on the grip (macos/icon/goodjoe-logo.png, next to this script's output),
+// running along it, inside the grip's outline
+let logoURL = URL(fileURLWithPath: CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "macos/icon/goodjoe-logo.png")
+if let src = CGImageSourceCreateWithURL(logoURL as CFURL, nil), let logo = CGImageSourceCreateImageAtIndex(src, 0, nil) {
+    ctx.saveGState()
+    ctx.addPath(grip); ctx.clip()
+    ctx.translateBy(x: -270, y: -118)
+    ctx.rotate(by: 1.31)                           // along the grip, read from the butt up
+    let lw: CGFloat = 190, lh = lw * CGFloat(logo.height) / CGFloat(logo.width)
+    ctx.setShadow(offset: CGSize(width: 0, height: -2), blur: 4, color: rgb(0, 0, 0, 0.9))
+    ctx.draw(logo, in: CGRect(x: -lw / 2, y: -lh / 2, width: lw, height: lh))
+    ctx.restoreGState()
+}
 ctx.restoreGState()   // the revolver's frame of reference
 
 ctx.restoreGState()   // the tile

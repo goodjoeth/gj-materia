@@ -2,6 +2,9 @@
 // and gold. Colours, the Play page's sky, the gold title, the crimson Play button and the dark
 // glass cards the pages put their boxes on. SwiftUI only, so an iPad build shares it.
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 enum Theme {
     static let gold = Color(red: 0.93, green: 0.72, blue: 0.32)
@@ -17,42 +20,91 @@ enum Theme {
     }
 }
 
-/// The Play page's background: a dark crimson night with the red Meteor up and right, a few stars,
-/// and a cloak's dark folds along the bottom.
+/// A night full of stars: a few hundred of them (some tinted, the brightest with a cross of light,
+/// twinkling slowly) over faint crimson and violet nebulae. Every page sits on it; `dim` darkens it
+/// under the lists.
+struct StarField: View {
+    var dim = false
+    private struct Star { let x, y, r, phase: CGFloat; let tint: Int }
+    private static let stars: [Star] = {
+        var seed: UInt64 = 0x9E3779B97F4A7C15
+        func rnd() -> CGFloat { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return CGFloat(seed >> 33) / CGFloat(1 << 31) }
+        return (0..<420).map { _ in
+            let big = rnd() > 0.93
+            return Star(x: rnd(), y: rnd(), r: big ? 1.2 + rnd() * 1.4 : 0.4 + rnd() * 0.8, phase: rnd() * 6.28, tint: Int(rnd() * 10))
+        }
+    }()
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20)) { tl in
+            let t = tl.date.timeIntervalSinceReferenceDate
+            Canvas { c, size in
+                c.fill(Path(CGRect(origin: .zero, size: size)), with: .linearGradient(
+                    Gradient(colors: [Color(red: 0.1, green: 0.03, blue: 0.08), Color(red: 0.03, green: 0.02, blue: 0.05), Color(red: 0.01, green: 0.01, blue: 0.02)]),
+                    startPoint: .zero, endPoint: CGPoint(x: size.width * 0.3, y: size.height)))
+                // nebulae
+                for (x, y, r, col) in [(0.2, 0.3, 0.45, Color(red: 0.5, green: 0.05, blue: 0.2)), (0.7, 0.75, 0.5, Color(red: 0.25, green: 0.08, blue: 0.45)),
+                                       (0.95, 0.1, 0.35, Color(red: 0.6, green: 0.12, blue: 0.08))] as [(CGFloat, CGFloat, CGFloat, Color)] {
+                    let R = r * max(size.width, size.height)
+                    c.fill(Path(ellipseIn: CGRect(x: x * size.width - R, y: y * size.height - R * 0.6, width: R * 2, height: R * 1.2)),
+                           with: .radialGradient(Gradient(colors: [col.opacity(0.28), .clear]), center: CGPoint(x: x * size.width, y: y * size.height), startRadius: 0, endRadius: R))
+                }
+                for s in Self.stars {
+                    let p = CGPoint(x: s.x * size.width, y: s.y * size.height)
+                    let tw = 0.55 + 0.45 * sin(t * (0.6 + Double(s.phase) * 0.15) + Double(s.phase))
+                    let col: Color = s.tint == 0 ? Color(red: 1, green: 0.75, blue: 0.6) : s.tint == 1 ? Color(red: 0.7, green: 0.8, blue: 1) : .white
+                    c.fill(Path(ellipseIn: CGRect(x: p.x - s.r, y: p.y - s.r, width: s.r * 2, height: s.r * 2)), with: .color(col.opacity(0.35 + 0.6 * tw)))
+                    if s.r > 1.8 {   // the brightest: a small cross of light
+                        let l = s.r * 4 * tw
+                        var cross = Path()
+                        cross.move(to: CGPoint(x: p.x - l, y: p.y)); cross.addLine(to: CGPoint(x: p.x + l, y: p.y))
+                        cross.move(to: CGPoint(x: p.x, y: p.y - l)); cross.addLine(to: CGPoint(x: p.x, y: p.y + l))
+                        c.stroke(cross, with: .color(col.opacity(0.35 * tw)), lineWidth: 0.8)
+                    }
+                }
+                if dim { c.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.black.opacity(0.35))) }
+            }
+        }
+        .ignoresSafeArea()
+    }
+}
+
+/// The Play page's background: the starry night, the red Meteor up and right, a cloak's edge below.
 struct MeteorSky: View {
     var body: some View {
         GeometryReader { g in
             let w = g.size.width, h = g.size.height
-            let r = min(w, h) * 0.17
+            let r = min(w, h) * 0.15
             ZStack {
-                LinearGradient(colors: [Color(red: 0.2, green: 0.04, blue: 0.06), Theme.night, Color(red: 0.02, green: 0.02, blue: 0.03)],
-                               startPoint: .top, endPoint: .bottom)
-                // stars
-                ForEach(0..<28, id: \.self) { i in
-                    let x = CGFloat((i * 137) % 1000) / 1000, y = CGFloat((i * 251) % 1000) / 1000 * 0.6
-                    Circle().fill(.white.opacity(0.25 + Double(i % 4) * 0.12))
-                        .frame(width: CGFloat(1 + i % 3), height: CGFloat(1 + i % 3))
-                        .position(x: x * w, y: y * h)
-                }
-                // the Meteor and its glow
+                StarField()
                 Circle()
-                    .fill(RadialGradient(colors: [Theme.ember.opacity(0.45), .clear], center: .center, startRadius: r * 0.8, endRadius: r * 2.2))
+                    .fill(RadialGradient(colors: [Theme.ember.opacity(0.4), .clear], center: .center, startRadius: r * 0.8, endRadius: r * 2.2))
                     .frame(width: r * 4.4, height: r * 4.4)
-                    .position(x: w * 0.8, y: h * 0.18)
+                    .position(x: w * 0.82, y: h * 0.17)
                 Circle()
                     .fill(RadialGradient(colors: [Color(red: 1, green: 0.85, blue: 0.45), Theme.ember, Theme.crimson, Theme.crimsonDark],
                                          center: UnitPoint(x: 0.38, y: 0.62), startRadius: 0, endRadius: r))
                     .frame(width: r * 2, height: r * 2)
-                    .overlay(Circle().fill(Color(red: 0.3, green: 0.03, blue: 0.03).opacity(0.18)).blur(radius: r * 0.08).frame(width: r * 0.6, height: r * 0.45).offset(x: r * 0.35, y: -r * 0.3))
-                    .overlay(Circle().fill(Color(red: 0.3, green: 0.03, blue: 0.03).opacity(0.15)).blur(radius: r * 0.08).frame(width: r * 0.45, height: r * 0.55).offset(x: -r * 0.45, y: r * 0.35))
-                    .position(x: w * 0.8, y: h * 0.18)
-                    .opacity(0.9)
-                // the cloak's folds
+                    .position(x: w * 0.82, y: h * 0.17)
+                    .opacity(0.92)
                 CloakEdge().fill(LinearGradient(colors: [Theme.crimson.opacity(0.35), Theme.crimsonDark.opacity(0.75)], startPoint: .top, endPoint: .bottom))
                     .frame(height: h * 0.1).frame(maxHeight: .infinity, alignment: .bottom)
             }
         }
         .ignoresSafeArea()
+    }
+}
+
+/// Good JOE's logo (Resources/goodjoe-logo.png).
+struct GoodJoeLogo: View {
+    var height: CGFloat
+    var body: some View {
+        #if os(macOS)
+        if let u = Bundle.main.url(forResource: "goodjoe-logo", withExtension: "png"), let img = NSImage(contentsOf: u) {
+            Image(nsImage: img).resizable().interpolation(.high).aspectRatio(contentMode: .fit).frame(height: height)
+                .shadow(color: .black.opacity(0.7), radius: 3, y: 2)
+        }
+        #endif
     }
 }
 

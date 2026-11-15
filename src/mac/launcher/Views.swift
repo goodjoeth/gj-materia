@@ -152,6 +152,13 @@ struct LauncherView: View {
                 .tag(p)
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190)
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 2) {
+                    GoodJoeLogo(height: 54)
+                    Text("GJ Materia").font(.caption2.weight(.semibold)).foregroundStyle(Theme.gold.opacity(0.8))
+                }
+                .padding(.bottom, 12)
+            }
         } detail: {
             switch pane ?? .play {
             case .play: PlayView(state: state, library: state.library)
@@ -164,6 +171,8 @@ struct LauncherView: View {
             case .controls: ControlsView()
             }
         }
+        .scrollContentBackground(.hidden)
+        .background { if pane != .play && pane != nil { StarField(dim: true) } }
         .frame(minWidth: 980, minHeight: 640)
         .tint(Theme.gold)
     }
@@ -282,8 +291,11 @@ struct PlayView: View {
             #endif
             VStack(spacing: 6) {
                 GoldText(text: "FINAL FANTASY VII", size: 42)
-                Text("GJ MATERIA  ·  BY GOOD JOE").font(.system(size: 12, weight: .semibold)).tracking(3)
-                    .foregroundStyle(Theme.goldLight.opacity(0.7))
+                HStack(spacing: 10) {
+                    Text("GJ MATERIA  ·  BY").font(.system(size: 12, weight: .semibold)).tracking(3)
+                        .foregroundStyle(Theme.goldLight.opacity(0.7))
+                    GoodJoeLogo(height: 48)
+                }
             }
             if !Paths.gameReady || state.gameFiles.dataLinkedTo != nil || !state.gameFiles.exeMatches {
                 GameFilesBox(files: state.gameFiles).glassCard().frame(maxWidth: 640)
