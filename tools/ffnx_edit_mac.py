@@ -387,6 +387,16 @@ bool ff7r_replaying_deferred;   // gl.cpp: the 21:9 battle window move is not ma
 #endif
 uint32_t gl_defer_draw('''))
 
+# The battle swirl (and anything drawn from a copy of the frame) was upside down: FFNx's vertex
+# shaders flip a framebuffer texture's V for OpenGL's bottom-left origin, and skip it only for
+# HLSL and SPIR-V. Metal's origin is top-left as theirs, so it is skipped there too.
+for _vs in ('../misc/FFNx.vert', '../misc/FFNx.lighting.vert'):
+    EDITS.append((_vs,
+'''    #if BGFX_SHADER_LANGUAGE_SPIRV
+    #else''',
+'''    #if BGFX_SHADER_LANGUAGE_SPIRV || BGFX_SHADER_LANGUAGE_METAL   // FF7Recomp: Metal's origin is top-left too
+    #else'''))
+
 def main():
     n = 0
     for name, old, new, *how in EDITS:
