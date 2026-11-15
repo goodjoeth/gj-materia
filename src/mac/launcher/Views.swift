@@ -18,6 +18,8 @@ final class LauncherState: ObservableObject {
     let steam = SteamLink()
     let gameFiles = GameFiles()
     let pad = PadInput()
+    let cloud = CloudSaves()
+    @Published var otherPlaying: CloudSaves.Playing?
     private var steamLoop: Task<Void, Never>?
     #if os(macOS)
     weak var window: NSWindow?
@@ -28,7 +30,16 @@ final class LauncherState: ObservableObject {
         if steam.signedIn { Task { await steam.sync() } }   // unlocks from the last session, fresh state
     }
 
+    /// Play, unless another Mac has a recent note that it is playing (then the launcher asks).
     func play() {
+        if otherPlaying == nil, let p = CloudSaves.otherDevicePlaying() { otherPlaying = p; return }
+        otherPlaying = nil
+        playNow()
+    }
+
+    func playNow() {
+        otherPlaying = nil
+        CloudSaves.beforePlay()
         Paths.ensure()
         FontFix.apply()
         library.save()
@@ -138,7 +149,7 @@ struct LauncherView: View {
             case .mods: MyModsView(library: state.library, gameFiles: state.gameFiles)
             case .catalog: CatalogView(catalog: state.catalog, downloads: state.downloads, library: state.library)
             case .downloads: DownloadsView(downloads: state.downloads)
-            case .saves: SavesView()
+            case .saves: SavesView(cloud: state.cloud)
             case .achievements: AchievementsView(steam: state.steam)
             case .controls: ControlsView()
             }
@@ -193,6 +204,12 @@ struct PlayView: View {
             .buttonStyle(.link).padding(.bottom)
             .fileExporter(isPresented: Binding(get: { reportDoc != nil }, set: { if !$0 { reportDoc = nil } }), document: reportDoc,
                           contentType: .zip, defaultFilename: "FF7Recomp-report.zip") { _ in reportDoc = nil }
+            .alert("กำลังเล่นอยู่ที่เครื่องอื่น?", isPresented: Binding(get: { state.otherPlaying != nil }, set: { if !$0 { state.otherPlaying = nil } })) {
+                Button("เล่นต่อที่เครื่องนี้") { state.playNow() }
+                Button("ยกเลิก", role: .cancel) { state.otherPlaying = nil }
+            } message: {
+                Text("“\(state.otherPlaying?.device ?? "")” เริ่มเล่นไว้เมื่อ \(state.otherPlaying?.since.formatted(date: .omitted, time: .shortened) ?? "") และยังไม่ได้ปิดเกม ถ้าเล่นพร้อมกันสองเครื่อง เครื่องที่เซฟทีหลังจะทับอีกเครื่อง (เซฟก่อนหน้าสำรองไว้ใน save-backups ทุกครั้งที่กดเล่น)")
+            }
             .alert("สร้างไฟล์รายงานไม่ได้", isPresented: Binding(get: { reportError != nil }, set: { if !$0 { reportError = nil } })) {
                 Button("ตกลง") { reportError = nil }
             } message: { Text(reportError ?? "") }
@@ -816,6 +833,8 @@ struct DownloadsView: View {
 // MARK: Saves
 
 struct SavesView: View {
+    @ObservedObject var cloud: CloudSaves
+    @Environment(\.openURL) private var openURL
     @State private var files: [FF7Save.File] = FF7Save.list()
     @State private var states: [SaveStates.Slot] = SaveStates.all()
     @State private var current = SaveStates.current
@@ -828,6 +847,24 @@ struct SavesView: View {
 
     var body: some View {
         Form {
+            Section {
+                Toggle("เก็บเซฟและ save state ใน iCloud Drive", isOn: Binding(get: { CloudSaves.enabled }, set: { on in
+                    if on { cloud.enable() } else { cloud.disable() }
+                    refresh()
+                }))
+                .disabled(cloud.busy || !CloudSaves.available)
+                if let s = cloud.status { Text(s).font(.callout).foregroundStyle(.secondary) }
+                HStack {
+                    if CloudSaves.enabled { Button("เปิดโฟลเดอร์ใน iCloud Drive") { openURL(CloudSaves.root) } }
+                    Button("เปิดเซฟสำรอง") { openURL(CloudSaves.backups) }
+                }
+                .buttonStyle(.link)
+            } header: { Text("iCloud") } footer: {
+                Text(CloudSaves.available
+                     ? "ทุก Mac ที่ใช้ Apple ID เดียวกันจะเล่นต่อจากเซฟเดียวกันได้ (iPad ในอนาคตเปิดผ่านแอป Files) อย่าเล่นพร้อมกันสองเครื่อง ถ้ามีเครื่องอื่นเปิดเกมค้างไว้ แอปจะเตือนก่อน และสำรองเซฟไว้ทุกครั้งที่กดเล่น (เก็บ 20 ครั้งล่าสุด)"
+                     : "iCloud Drive ไม่ได้เปิดอยู่: การตั้งค่าระบบ → [ชื่อคุณ] → iCloud → iCloud Drive")
+                    .font(.caption)
+            }
             Section {
                 if files.isEmpty { Text("ยังไม่มีไฟล์เซฟ (เซฟในเกมแล้วจะขึ้นที่นี่)").foregroundStyle(.secondary) }
                 ForEach(files) { f in

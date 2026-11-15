@@ -38,6 +38,7 @@ set(FF7_LAUNCHER_SOURCES
   "${FF7_ROOT}/src/mac/launcher/GameFiles.swift"
   "${FF7_ROOT}/src/mac/launcher/TVMode.swift"
   "${FF7_ROOT}/src/mac/launcher/Report.swift"
+  "${FF7_ROOT}/src/mac/launcher/CloudSaves.swift"
   "${FF7_ROOT}/src/mac/launcher/Views.swift"
   "${FF7_ROOT}/src/mac/ff7_launcher_native.cpp"
   "${FF7_ROOT}/src/android/un7z.c"

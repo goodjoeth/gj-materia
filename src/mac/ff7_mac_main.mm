@@ -112,7 +112,9 @@ void relaunch_and_quit() {
 
 // The game ended (ExitProcess, src/hle/ff7_kernel32.c): the process ends right after, so the
 // launcher is opened now, from the game thread, and waited for.
+extern "C" void ff7_launcher_game_exited(void);   // src/mac/launcher/CloudSaves.swift: this Mac no longer plays
 extern "C" void ff7_platform_exit(int code) {
+    ff7_launcher_game_exited();
     std::fprintf(stderr, "[ff7] game exited (%d)%s\n", code, g_relaunch.load() ? ": opening the launcher" : "");
     std::fflush(stderr);
     if (!g_relaunch.load()) return;
@@ -471,7 +473,7 @@ extern "C" void ff7_overlay_attach(void *view);   // src/mac/launcher/GameOverla
     return NO;
 }
 - (void)backToLauncher:(id)sender { if (self.window) request_back_to_launcher(); }
-- (void)quitApp:(id)sender { g_relaunch.store(false); [NSApp terminate:nil]; }
+- (void)quitApp:(id)sender { g_relaunch.store(false); if (self.window) ff7_launcher_game_exited(); [NSApp terminate:nil]; }
 @end
 
 static void build_menu(void) {
