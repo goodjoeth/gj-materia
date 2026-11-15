@@ -338,7 +338,7 @@ struct PlayView: View {
                 }
                 .help(L("รวม log ตั้งค่า และรายการม็อดเป็นไฟล์ .zip ไฟล์เดียว (ไม่มีไฟล์เกมและข้อมูลบัญชี Steam) แนบไปกับรายงานบั๊กได้เลย", "Puts the logs, settings and mod list in one .zip (no game files, nothing of your Steam account) to attach to a bug report"))
             }
-            .buttonStyle(.link).tint(Theme.goldLight).padding(.bottom)
+            .buttonStyle(.plain).foregroundStyle(Theme.goldLight).font(.callout.weight(.medium)).padding(.bottom)
             .fileExporter(isPresented: Binding(get: { reportDoc != nil }, set: { if !$0 { reportDoc = nil } }), document: reportDoc,
                           contentType: .zip, defaultFilename: "GJMateria-report.zip") { _ in reportDoc = nil }
             .alert(L("กำลังเล่นอยู่ที่เครื่องอื่น?", "Playing on another Mac?"), isPresented: Binding(get: { state.otherPlaying != nil }, set: { if !$0 { state.otherPlaying = nil } })) {
