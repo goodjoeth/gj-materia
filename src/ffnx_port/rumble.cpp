@@ -21,11 +21,13 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include "common.h"
 #include "globals.h"
 #include "ff7.h"
 
 extern "C" void ff7_platform_rumble(int amplitude, int ms);   // src/android: 0 stops it
+extern "C" int ff7_dsound_take_sfx(float *loud, int *ms, uint32_t *sound);   // src/hle/ff7_dsound.c
 
 namespace {
 
@@ -163,6 +165,31 @@ void battle_frame(clk::time_point now, bool settling) {
     }
 }
 
+// Minigames (G-Bike, chocobo races, snowboard, Fort Condor, submarine, the Speed Square): no
+// battle or field records to read, so rumble follows their sound effects, which is where their
+// knocks are: a crash, a hit, a jump landing. A loud one-shot effect is a pulse, as strong as it
+// is loud and as long as it lasts (90-320 ms). A sound that repeats (hooves, the engine's
+// putter, the snowboard's swish) is felt once and then left alone while it keeps repeating.
+void minigame_frame(clk::time_point now, bool settling) {
+    static uint32_t recent[16];
+    static clk::time_point recent_at[16];
+    static int recent_n;
+    float loud; int ms; uint32_t sound;
+    while (ff7_dsound_take_sfx(&loud, &ms, &sound)) {
+        if (settling || loud < 0.3f) continue;
+        bool repeat = false;
+        for (int i = 0; i < 16; i++)
+            if (recent[i] == sound && now - recent_at[i] < std::chrono::milliseconds(900)) { repeat = true; recent_at[i] = now; }
+        if (repeat) continue;
+        recent[recent_n] = sound; recent_at[recent_n] = now; recent_n = (recent_n + 1) % 16;
+        const float x = loud >= 0.85f ? 1.0f : (loud - 0.3f) / 0.55f;
+        const int amp = 160 + (int)(95 * x);
+        const int len = ms < 90 ? 90 : ms > 320 ? 320 : ms;
+        std::fprintf(stderr, "[rumble] minigame sound, loudness %.2f, %d ms\n", loud, ms);
+        play(amp, len, now);
+    }
+}
+
 }  // namespace
 
 extern "C" void ff7_rumble_set_level(int level) {
@@ -185,6 +212,12 @@ extern "C" void ff7_rumble_frame(int mode) {
     }
     // a battle's first second sets its records up: only watched, nothing played
     const bool settling = now - mode_since < std::chrono::milliseconds(1000);
+    static const bool all_sounds = getenv("FF7_RUMBLE_SFX_ALL") != nullptr;   // tests: sound rumble everywhere
+    const bool minigame = mode == MODE_HIGHWAY || mode == MODE_CHOCOBO || mode == MODE_SNOWBOARD || mode == MODE_CONDOR ||
+                          mode == MODE_SUBMARINE || mode == MODE_COASTER;
+    if (minigame || all_sounds) minigame_frame(now, settling);
+    else { float l; int m; uint32_t s; while (ff7_dsound_take_sfx(&l, &m, &s)) {} }   // not used here
+    if (all_sounds) return;
     if (mode == MODE_FIELD) field_frame(now);
     else if (mode == MODE_BATTLE && ff7_externals.battle_context) battle_frame(now, settling);
 }

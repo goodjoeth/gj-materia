@@ -67,6 +67,37 @@ static int g_trace;
 
 static voice *voice_of(uint32_t obj) { return &g_voices[W32(FF7_COM_STATE(obj))]; }
 
+static inline float sample_at(const voice *v, uint32_t frame, int ch);
+/* Sound effects started (one-shots, not loops), for the minigames' rumble (src/ffnx_port/rumble.cpp):
+ * how loud (the buffer's peak times its volume, 0..1), how long, and which sound (its PCM). */
+typedef struct { float loud; int ms; uint32_t sound; } sfx_event;
+static sfx_event g_events[32];
+static unsigned g_ev_head, g_ev_tail;
+static pthread_mutex_t g_ev_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static float buffer_peak(const voice *v) {
+    if (!v->data || !v->bytes || !v->block) return 0.0f;
+    uint32_t n = v->bytes / v->block, stride = n > 4096 ? n / 4096 : 1;
+    float peak = 0.0f;
+    for (uint32_t f = 0; f < n; f += stride)
+        for (int c = 0; c < v->channels && c < 2; c++) {
+            float s = fabsf(sample_at(v, f, c));
+            if (s > peak) peak = s;
+        }
+    return peak;
+}
+
+int ff7_dsound_take_sfx(float *loud, int *ms, uint32_t *sound) {
+    int got = 0;
+    pthread_mutex_lock(&g_ev_lock);
+    if (g_ev_tail != g_ev_head) {
+        const sfx_event *e = &g_events[g_ev_tail++ % 32];
+        *loud = e->loud; *ms = e->ms; *sound = e->sound; got = 1;
+    }
+    pthread_mutex_unlock(&g_ev_lock);
+    return got;
+}
+
 static float db100_to_gain(int32_t v) { return v <= -10000 ? 0.0f : powf(10.0f, (float)v / 2000.0f); }
 static void voice_gains(voice *v) {
     float g = db100_to_gain(v->volume);
@@ -280,7 +311,15 @@ static void b_Play(void) {   /* (this, r1, r2, flags) */
     pthread_mutex_lock(&g_lock);
     v->looping = (fl & DSBPLAY_LOOPING) != 0;
     v->playing = 1;
+    const float gain = v->gain_l > v->gain_r ? v->gain_l : v->gain_r;
+    const float loud = v->looping ? 0.0f : buffer_peak(v) * gain;
+    const int ms = v->block && v->freq ? (int)((uint64_t)(v->bytes / v->block) * 1000 / v->freq) : 0;
     pthread_mutex_unlock(&g_lock);
+    if (loud > 0.05f) {
+        pthread_mutex_lock(&g_ev_lock);
+        if (g_ev_head - g_ev_tail < 32) g_events[g_ev_head++ % 32] = (sfx_event){ loud, ms, v->data };
+        pthread_mutex_unlock(&g_ev_lock);
+    }
     if (g_trace) fprintf(stderr, "[dsound] Play obj 0x%08X %u bytes %u Hz vol %d pan %d%s\n", A32(0), v->bytes, v->freq, v->volume, v->pan, v->looping ? " loop" : "");
     RET(DS_OK, 4);
 }
