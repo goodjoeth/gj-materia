@@ -56,25 +56,49 @@ enum : unsigned short {
     XI_LB = 0x0100, XI_RB = 0x0200, XI_A = 0x1000, XI_B = 0x2000, XI_X = 0x4000, XI_Y = 0x8000,
 };
 
-// macOS virtual key codes (Carbon kVK_*)
-unsigned short key_to_button(unsigned short kc) {
-    switch (kc) {
-    case 126: return XI_UP;
-    case 125: return XI_DOWN;
-    case 123: return XI_LEFT;
-    case 124: return XI_RIGHT;
-    case 36: case 76: case 40: return XI_B;     // Return, keypad Enter, K: OK
-    case 51: case 38: return XI_A;              // Backspace, J: cancel
-    case 49: case 34: return XI_Y;              // Space, I: menu
-    case 32: return XI_X;                       // U: square
-    case 12: return XI_LB;                      // Q
-    case 13: return XI_RB;                      // W
-    case 48: return XI_BACK;                    // Tab: select
-    case 35: return XI_START;                   // P: start
-    case 37: return XI_LTHUMB;                  // L: L3 (FFNx's shortcut mode)
-    case 15: return XI_RTHUMB;                  // R: R3
-    default: return 0;
+// The keyboard: macOS virtual key codes (Carbon kVK_*) -> pad buttons. The defaults below, or
+// keymap.txt beside the game folder, written by the launcher's Controls page (Views.swift
+// KeymapEditor): one line per button, "name keycode keycode ...".
+enum : unsigned short { KEY_L2 = 0xFFFE, KEY_R2 = 0xFFFD };
+static unsigned short g_keymap[128];
+static const struct { const char *name; unsigned short button; std::initializer_list<unsigned short> keys; } k_keymap_default[] = {
+    {"up", XI_UP, {126}}, {"down", XI_DOWN, {125}}, {"left", XI_LEFT, {123}}, {"right", XI_RIGHT, {124}},
+    {"ok", XI_B, {36, 76, 40}},           // Return, keypad Enter, K
+    {"cancel", XI_A, {51, 38}},           // Backspace, J
+    {"menu", XI_Y, {49, 34}},             // Space, I
+    {"square", XI_X, {56, 60, 32}},       // Shift, U
+    {"l1", XI_LB, {12}}, {"r1", XI_RB, {13}},      // Q, W
+    {"l2", KEY_L2, {18}}, {"r2", KEY_R2, {19}},    // 1, 2
+    {"select", XI_BACK, {48}},            // Tab
+    {"start", XI_START, {35}},            // P
+    {"l3", XI_LTHUMB, {37}},              // L: FFNx's shortcut mode
+    {"r3", XI_RTHUMB, {15}},              // R
+};
+
+void load_keymap(const std::string &game_dir) {
+    std::memset(g_keymap, 0, sizeof g_keymap);
+    for (auto &d : k_keymap_default) for (unsigned short k : d.keys) g_keymap[k] = d.button;
+    FILE *f = std::fopen((game_dir + "/../keymap.txt").c_str(), "r");
+    if (!f) return;
+    unsigned short m[128] = {};
+    char line[256];
+    int lines = 0;
+    while (std::fgets(line, sizeof line, f)) {
+        char name[32]; int n = 0;
+        if (std::sscanf(line, "%31s%n", name, &n) != 1) continue;
+        unsigned short button = 0;
+        for (auto &d : k_keymap_default) if (!std::strcmp(d.name, name)) button = d.button;
+        if (!button) continue;
+        ++lines;
+        for (char *p = line + n;;) {
+            char *e; long k = std::strtol(p, &e, 10);
+            if (e == p) break;
+            if (k >= 0 && k < 128) m[k] = button;
+            p = e;
+        }
     }
+    std::fclose(f);
+    if (lines) { std::memcpy(g_keymap, m, sizeof m); std::fprintf(stderr, "[ff7] keymap.txt: %d buttons\n", lines); }
 }
 
 // Tests: FF7_TEST_INPUT="seconds:hexbuttons:ms,..." presses XInput buttons at those times
@@ -113,7 +137,9 @@ void relaunch_and_quit() {
 // The game ended (ExitProcess, src/hle/ff7_kernel32.c): the process ends right after, so the
 // launcher is opened now, from the game thread, and waited for.
 extern "C" void ff7_launcher_game_exited(void);   // src/mac/launcher/CloudSaves.swift: this Mac no longer plays
+extern "C" void ff7_downloads_keep(void);         // src/mac/launcher/Mods.swift: mod downloads go on next time
 extern "C" void ff7_platform_exit(int code) {
+    ff7_downloads_keep();
     ff7_launcher_game_exited();
     std::fprintf(stderr, "[ff7] game exited (%d)%s\n", code, g_relaunch.load() ? ": opening the launcher" : "");
     std::fflush(stderr);
@@ -386,9 +412,12 @@ extern "C" int ff7_platform_pad_buttons(void) { return g_key_buttons.load(); }
 - (BOOL)acceptsFirstResponder { return YES; }
 - (void)setKey:(NSEvent *)e down:(BOOL)down {
     unsigned short kc = e.keyCode;
-    if (kc == 18) { g_key_lt.store(down ? 255 : 0); return; }   // 1: L2
-    if (kc == 19) { g_key_rt.store(down ? 255 : 0); return; }   // 2: R2
-    unsigned short b = key_to_button(kc);
+    [self setKeyCode:e.keyCode down:down];
+}
+- (void)setKeyCode:(unsigned short)kc down:(BOOL)down {
+    unsigned short b = kc < 128 ? g_keymap[kc] : 0;
+    if (b == KEY_L2) { g_key_lt.store(down ? 255 : 0); return; }
+    if (b == KEY_R2) { g_key_rt.store(down ? 255 : 0); return; }
     if (!b) return;
     if (down) g_key_buttons.fetch_or(b);
     else g_key_buttons.fetch_and((unsigned short)~b);
@@ -401,11 +430,16 @@ extern "C" int ff7_platform_pad_buttons(void) { return g_key_buttons.load(); }
 }
 - (void)keyUp:(NSEvent *)e { [self setKey:e down:NO]; }
 - (void)flagsChanged:(NSEvent *)e {
-    if (e.keyCode == 56 || e.keyCode == 60) {   // Shift: square
-        BOOL down = (e.modifierFlags & NSEventModifierFlagShift) != 0;
-        if (down) g_key_buttons.fetch_or(XI_X);
-        else g_key_buttons.fetch_and((unsigned short)~XI_X);
+    // a modifier key mapped to a button (Shift is square by default)
+    NSEventModifierFlags flag = 0;
+    switch (e.keyCode) {
+    case 56: case 60: flag = NSEventModifierFlagShift; break;
+    case 59: case 62: flag = NSEventModifierFlagControl; break;
+    case 58: case 61: flag = NSEventModifierFlagOption; break;
+    case 57: flag = NSEventModifierFlagCapsLock; break;
+    default: return;
     }
+    [self setKeyCode:e.keyCode down:(e.modifierFlags & flag) != 0];
 }
 - (void)updateDrawableSize {
     CAMetalLayer *l = (CAMetalLayer *)self.layer;
@@ -481,6 +515,7 @@ extern "C" void ff7_overlay_attach(void *view);   // src/mac/launcher/GameOverla
 
     g_game_dir = find_game_dir();
     redirect_log(g_game_dir);
+    load_keymap(g_game_dir);
     std::fprintf(stderr, "[ff7] macOS: game folder %s, window %dx%d\n", g_game_dir.c_str(), g_width.load(), g_height.load());
     pthread_attr_t a;
     pthread_attr_init(&a);

@@ -321,7 +321,7 @@ enum Installer {
 
 // MARK: catalogs
 
-struct CatalogMod: Identifiable, Hashable {
+struct CatalogMod: Identifiable, Hashable, Codable {
     let id: String
     let name, author, category, description, link: String
     let version, preview, releaseNotes: String
@@ -375,6 +375,38 @@ final class Catalog: ObservableObject {
 
     var categories: [String] { Array(Set(mods.map { $0.category })).filter { !$0.isEmpty }.sorted() }
 
+    /// The installed version of a catalog mod (installed from the catalog, or a mod whose mod.xml
+    /// carries the catalog's ID); nil when it is not installed.
+    static func installedVersion(_ m: CatalogMod, _ library: ModLibrary) -> String? {
+        if let v = library.installedCatalog[m.id]?["version"] { return v }
+        return library.mods.first { $0.info?.id.lowercased() == m.id }.map { $0.info?.version ?? "" }
+    }
+
+    /// Whether the catalog's version is newer: as decimals ("2.968"), else number by number ("1.2.10" > "1.2.9");
+    /// versions that are not numbers count as newer when they differ.
+    static func isNewer(_ catalog: String, than installed: String) -> Bool {
+        let a = catalog.trimmingCharacters(in: .whitespaces), b = installed.trimmingCharacters(in: .whitespaces)
+        if a.isEmpty || b.isEmpty || a == b { return false }   // no installed version: unknown, not "new"
+        // 7th Heaven's versions are decimal numbers ("2.968" > "2.97" is false, as there)
+        if a.filter({ $0 == "." }).count <= 1, b.filter({ $0 == "." }).count <= 1, let x = Double(a), let y = Double(b) { return x > y }
+        func nums(_ s: String) -> [Int]? {
+            let parts = s.lowercased().drop { $0 == "v" }.split(separator: ".")
+            let n = parts.compactMap { Int($0) }
+            return n.count == parts.count && !n.isEmpty ? n : nil
+        }
+        guard let x = nums(a), let y = nums(b) else { return true }
+        for i in 0..<max(x.count, y.count) {
+            let p = i < x.count ? x[i] : 0, q = i < y.count ? y[i] : 0
+            if p != q { return p > q }
+        }
+        return false
+    }
+
+    /// Installed mods with a newer version in the catalog.
+    func updates(_ library: ModLibrary) -> [CatalogMod] {
+        mods.filter { m in Self.installedVersion(m, library).map { Self.isNewer(m.version, than: $0) } ?? false }
+    }
+
     /// iros:// links to plain URLs; nil for links that need a browser (Mega, web pages).
     static func resolve(_ link: String) -> URL? {
         let l = link.lowercased()
@@ -403,11 +435,16 @@ final class Catalog: ObservableObject {
 
 // MARK: downloads
 
+/// Mod downloads. A download that stops (the network drops, the launcher quits, the game
+/// starts and ends, or the user pauses it) keeps what it has in downloads/.partial and goes on
+/// from there: by itself when the launcher opens again, or with the resume button.
 @MainActor
 final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     struct Job { var progress: Double; var status: String; var task: URLSessionDownloadTask?; var mod: CatalogMod
-                 var bytes: Int64 = 0, total: Int64 = 0, started = Date() }
+                 var bytes: Int64 = 0, total: Int64 = 0, started = Date(), startBytes: Int64 = 0
+                 var paused = false, retries = 0 }
     struct Done: Identifiable { let id = UUID(); let name: String; let ok: Bool; let status: String; let at: Date }
+    struct Partial: Codable { let mod: CatalogMod; var byUser: Bool; var bytes: Int64; var total: Int64 }
     @Published var jobs: [String: Job] = [:]
     @Published var history: [Done] = []
     var active: Int { jobs.values.filter { $0.task != nil }.count }
@@ -417,8 +454,33 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     weak var library: ModLibrary?
     private lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
 
+    static var partialDir: URL { Paths.downloads.appendingPathComponent(".partial") }
+    static func safe(_ id: String) -> String { id.replacingOccurrences(of: "/", with: "_") }
+    static func resumeFile(_ id: String) -> URL { partialDir.appendingPathComponent(safe(id) + ".resume") }
+    static func infoFile(_ id: String) -> URL { partialDir.appendingPathComponent(safe(id) + ".json") }
+
+    override init() {
+        super.init()
+        // the downloads that stopped last time: paused ones wait, the others go on
+        for f in (try? Paths.fm.contentsOfDirectory(at: Self.partialDir, includingPropertiesForKeys: nil)) ?? [] where f.pathExtension == "json" {
+            guard let d = try? Data(contentsOf: f), let p = try? JSONDecoder().decode(Partial.self, from: d) else { continue }
+            let mb = { (b: Int64) in String(format: "%.0f", Double(b) / 1_048_576) }
+            jobs[p.mod.id] = Job(progress: p.total > 0 ? Double(p.bytes) / Double(p.total) : 0,
+                                 status: "หยุดไว้ที่ \(mb(p.bytes)) / \(mb(p.total)) MB", task: nil, mod: p.mod,
+                                 bytes: p.bytes, total: p.total, paused: true)
+            if !p.byUser { resume(p.mod.id) }
+        }
+        #if os(macOS)
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { _ in
+            MainActor.assumeIsolated { Downloads.shared?.keepAllBlocking() }
+        }
+        #endif
+        Downloads.shared = self
+    }
+    static weak var shared: Downloads?
+
     func start(_ m: CatalogMod) {
-        guard jobs[m.id] == nil else { return }
+        if let j = jobs[m.id] { if j.paused { resume(m.id) }; return }
         guard let url = m.links.lazy.compactMap(Catalog.resolve).first else {
             jobs[m.id] = Job(progress: 0, status: "ต้องดาวน์โหลดผ่านเบราว์เซอร์", task: nil, mod: m)
             return
@@ -429,18 +491,78 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         t.resume()
     }
 
-    func cancel(_ id: String) { jobs[id]?.task?.cancel(); jobs[id] = nil }
+    /// Go on from where it stopped (from the start when the server cannot).
+    func resume(_ id: String) {
+        guard var j = jobs[id], j.task == nil else { return }
+        let t: URLSessionDownloadTask
+        if let d = try? Data(contentsOf: Self.resumeFile(id)) {
+            t = session.downloadTask(withResumeData: d)
+        } else if let url = j.mod.links.lazy.compactMap(Catalog.resolve).first {
+            t = session.downloadTask(with: url); j.bytes = 0
+        } else { return }
+        t.taskDescription = id
+        j.task = t; j.paused = false; j.status = "กำลังดาวน์โหลดต่อ…"; j.started = Date(); j.startBytes = j.bytes
+        jobs[id] = j
+        t.resume()
+    }
+
+    /// Pause: what it has is kept for later.
+    func pause(_ id: String) {
+        guard let t = jobs[id]?.task else { return }
+        jobs[id]?.task = nil; jobs[id]?.paused = true; jobs[id]?.status = "กำลังหยุด…"
+        t.cancel { data in
+            Task { @MainActor in self.keep(id, data, byUser: true) }
+        }
+    }
+
+    func cancel(_ id: String) {
+        jobs[id]?.task?.cancel(); jobs[id] = nil
+        try? Paths.fm.removeItem(at: Self.resumeFile(id)); try? Paths.fm.removeItem(at: Self.infoFile(id))
+    }
+
+    private func keep(_ id: String, _ data: Data?, byUser: Bool) {
+        guard var j = jobs[id] else { return }
+        try? Paths.fm.createDirectory(at: Self.partialDir, withIntermediateDirectories: true)
+        if let data { try? data.write(to: Self.resumeFile(id)) } else { try? Paths.fm.removeItem(at: Self.resumeFile(id)); j.bytes = 0 }
+        if let d = try? JSONEncoder().encode(Partial(mod: j.mod, byUser: byUser, bytes: j.bytes, total: j.total)) { try? d.write(to: Self.infoFile(id)) }
+        j.task = nil; j.paused = true
+        j.status = data == nil ? "หยุดไว้ (เซิร์ฟเวอร์นี้ต่อไม่ได้ จะเริ่มใหม่)"
+                               : String(format: "หยุดไว้ที่ %.0f / %.0f MB", Double(j.bytes) / 1_048_576, Double(j.total) / 1_048_576)
+        jobs[id] = j
+    }
+
+    /// Before the process ends (quit, or the game ending): every running download kept, waiting
+    /// up to 3 s for URLSession to hand over what it has. Main thread only.
+    func keepAllBlocking() {
+        let running = jobs.compactMap { id, j in j.task.map { (id, $0) } }
+        guard !running.isEmpty else { return }
+        var left = running.count
+        for (id, t) in running {
+            jobs[id]?.task = nil
+            t.cancel { data in
+                DispatchQueue.main.async { MainActor.assumeIsolated { self.keep(id, data, byUser: false); left -= 1 } }
+            }
+        }
+        let until = Date().addingTimeInterval(3)
+        while left > 0 && Date() < until { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05)) }
+    }
 
     nonisolated func urlSession(_ s: URLSession, downloadTask t: URLSessionDownloadTask, didWriteData _: Int64, totalBytesWritten w: Int64, totalBytesExpectedToWrite e: Int64) {
         let id = t.taskDescription ?? ""
         MainActor.assumeIsolated {
-            guard var j = jobs[id] else { return }
+            guard var j = jobs[id], j.task === t else { return }
             let total = e > 0 ? e : Int64(j.mod.sizeKB) * 1024
             j.progress = total > 0 ? min(1, Double(w) / Double(total)) : 0
             j.bytes = w; j.total = total
             j.status = String(format: "กำลังดาวน์โหลด %.0f / %.0f MB", Double(w) / 1_048_576, Double(total) / 1_048_576)
             jobs[id] = j
         }
+    }
+
+    nonisolated func urlSession(_ s: URLSession, downloadTask t: URLSessionDownloadTask, didResumeAtOffset o: Int64, expectedTotalBytes e: Int64) {
+        let id = t.taskDescription ?? ""
+        NSLog("[downloads] %@ goes on from %lld of %lld bytes", id, o, e)
+        MainActor.assumeIsolated { jobs[id]?.startBytes = o; jobs[id]?.bytes = o }
     }
 
     nonisolated func urlSession(_ s: URLSession, downloadTask t: URLSessionDownloadTask, didFinishDownloadingTo loc: URL) {
@@ -451,6 +573,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         let moved = (try? Paths.fm.moveItem(at: loc, to: dst)) != nil
         let html = (t.response?.mimeType ?? "").contains("html")
         MainActor.assumeIsolated {
+            try? Paths.fm.removeItem(at: Self.resumeFile(id)); try? Paths.fm.removeItem(at: Self.infoFile(id))
             guard var j = jobs[id] else { return }
             if !moved || html || (t.response as? HTTPURLResponse).map({ $0.statusCode >= 400 }) == true {
                 j.status = "ดาวน์โหลดไม่สำเร็จ (ลองเปิดผ่านเบราว์เซอร์)"; j.task = nil; jobs[id] = j
@@ -468,12 +591,32 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     }
 
     nonisolated func urlSession(_ s: URLSession, task t: URLSessionTask, didCompleteWithError e: Error?) {
-        guard let e, (e as NSError).code != NSURLErrorCancelled else { return }
+        guard let e = e as NSError?, e.code != NSURLErrorCancelled else { return }
         let id = t.taskDescription ?? ""
+        let data = e.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
         MainActor.assumeIsolated {
-            jobs[id]?.status = "ดาวน์โหลดไม่สำเร็จ: \(e.localizedDescription)"
-            jobs[id]?.task = nil
-            finish(id, ok: false, jobs[id]?.status ?? "")
+            guard let j = jobs[id], j.task === t else { return }
+            // the network dropped: keep what came, and try again by itself a few times
+            keep(id, data, byUser: false)
+            if j.retries < 5 {
+                jobs[id]?.retries = j.retries + 1
+                jobs[id]?.status = "เน็ตหลุด จะดาวน์โหลดต่อใน 10 วินาที (\(e.localizedDescription))"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                    MainActor.assumeIsolated { if self?.jobs[id]?.paused == true && self?.jobs[id]?.task == nil { self?.resume(id) } }
+                }
+            } else {
+                jobs[id]?.status = "ดาวน์โหลดไม่สำเร็จ: \(e.localizedDescription) (กดดาวน์โหลดต่อเพื่อลองอีกครั้ง)"
+            }
         }
     }
+}
+
+/// The game ends (src/mac/ff7_mac_main.mm ff7_platform_exit, on the game thread): the downloads
+/// are kept before the process goes.
+@_cdecl("ff7_downloads_keep")
+public func ff7_downloads_keep() {
+    if Thread.isMainThread { MainActor.assumeIsolated { Downloads.shared?.keepAllBlocking() }; return }
+    let done = DispatchSemaphore(value: 0)
+    DispatchQueue.main.async { MainActor.assumeIsolated { Downloads.shared?.keepAllBlocking() }; done.signal() }
+    _ = done.wait(timeout: .now() + 5)
 }

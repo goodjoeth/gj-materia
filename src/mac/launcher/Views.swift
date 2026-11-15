@@ -28,6 +28,15 @@ final class LauncherState: ObservableObject {
         downloads.library = library
         GameFiles.installRuntime()          // this build's shaders and FFNx tables into the game folder
         if steam.signedIn { Task { await steam.sync() } }   // unlocks from the last session, fresh state
+        Task {
+            await catalog.load()                             // for the "new version" notices
+            // tests: FF7_TEST_DOWNLOAD="<catalog mod ID>" downloads it, pauses after 1 s, goes on 2 s later
+            if let id = ProcessInfo.processInfo.environment["FF7_TEST_DOWNLOAD"], let m = catalog.mods.first(where: { $0.id == id }) {
+                downloads.start(m)
+                try? await Task.sleep(nanoseconds: 1_000_000_000); downloads.pause(id)
+                try? await Task.sleep(nanoseconds: 2_000_000_000); NSLog("[test] paused: %@", downloads.jobs[id]?.status ?? "-"); downloads.resume(id)
+            }
+        }
     }
 
     /// Play, unless another Mac has a recent note that it is playing (then the launcher asks).
@@ -133,6 +142,7 @@ struct LauncherView: View {
             List(Pane.allCases, selection: $pane) { p in
                 HStack {
                     Label(p.rawValue, systemImage: p.icon)
+                    if p == .catalog { UpdatesBadge(catalog: state.catalog, library: state.library) }
                     if p == .downloads, downloads.active > 0 {
                         Spacer()
                         Text("\(downloads.active)").font(.caption.bold()).padding(.horizontal, 6).padding(.vertical, 1)
@@ -159,6 +169,54 @@ struct LauncherView: View {
 }
 
 // MARK: Play
+
+/// The number of installed mods with a new version, beside "ค้นหาม็อด" in the sidebar.
+struct UpdatesBadge: View {
+    @ObservedObject var catalog: Catalog
+    @ObservedObject var library: ModLibrary
+    var body: some View {
+        let n = catalog.updates(library).count
+        if n > 0 {
+            Spacer()
+            Text("\(n)").font(.caption.bold()).padding(.horizontal, 6).padding(.vertical, 1)
+                .background(Capsule().fill(.orange)).foregroundStyle(.white).help("ม็อดที่มีเวอร์ชันใหม่")
+        }
+    }
+}
+
+/// On the Play page: installed mods with a new version in the catalog, and updating them all.
+struct UpdatesBanner: View {
+    @ObservedObject var catalog: Catalog
+    @ObservedObject var library: ModLibrary
+    @ObservedObject var downloads: Downloads
+    @State private var open = false
+    var body: some View {
+        let ups = catalog.updates(library).filter { downloads.jobs[$0.id] == nil }
+        if !ups.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill").foregroundStyle(.orange)
+                    Text("ม็อดมีเวอร์ชันใหม่ \(ups.count) ตัว").fontWeight(.semibold)
+                    Spacer()
+                    Button(open ? "ซ่อน" : "ดู") { open.toggle() }.buttonStyle(.link)
+                    Button("อัปเดตทั้งหมด") { ups.forEach(downloads.start) }.controlSize(.small)
+                }
+                if open {
+                    ForEach(ups) { m in
+                        HStack {
+                            Text(m.name).lineLimit(1)
+                            Spacer()
+                            Text("\(Catalog.installedVersion(m, library) ?? "") → \(m.version)").font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                            Button("อัปเดต") { downloads.start(m) }.controlSize(.small)
+                        }
+                    }
+                }
+            }
+            .padding(12).frame(width: 520)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
+        }
+    }
+}
 
 struct PlayView: View {
     @ObservedObject var state: LauncherState
@@ -190,6 +248,7 @@ struct PlayView: View {
             Text(on.isEmpty ? "ไม่มีม็อดที่เปิดใช้" : "ม็อดที่เปิดใช้ \(on.count) ตัว: " + on.prefix(4).map { $0.title }.joined(separator: ", ") + (on.count > 4 ? " …" : ""))
                 .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 560)
             if let e = library.lastError { Text(e).foregroundStyle(.red) }
+            UpdatesBanner(catalog: state.catalog, library: library, downloads: state.downloads)
             Spacer()
             Text("มีจอย? กดปุ่มใดก็ได้บนจอยเพื่อเข้าโหมดทีวี").font(.caption).foregroundStyle(.secondary)
             HStack {
@@ -663,9 +722,12 @@ struct CatalogView: View {
     @State private var search = ""
     @State private var category = ""
     @State private var selected: String?
+    @State private var onlyUpdates = false
 
     var filtered: [CatalogMod] {
-        catalog.mods.filter { m in
+        let ups = onlyUpdates ? Set(catalog.updates(library).map { $0.id }) : []
+        return catalog.mods.filter { m in
+            (!onlyUpdates || ups.contains(m.id)) &&
             (category.isEmpty || m.category == category) &&
             (search.isEmpty || m.name.localizedCaseInsensitiveContains(search) || m.author.localizedCaseInsensitiveContains(search)
                 || m.tags.contains { $0.localizedCaseInsensitiveContains(search) })
@@ -682,6 +744,7 @@ struct CatalogView: View {
                         ForEach(catalog.categories, id: \.self) { Text($0).tag($0) }
                     }
                     .frame(width: 170)
+                    Toggle("มีอัปเดต", isOn: $onlyUpdates).toggleStyle(.button)
                     Button { Task { await catalog.load(force: true) } } label: { Image(systemName: "arrow.clockwise") }
                         .help("โหลด catalog ใหม่")
                 }
@@ -715,26 +778,45 @@ struct InstallButton: View {
     @Environment(\.openURL) private var openURL
     var body: some View {
         // installed from the catalog here, or a mod whose mod.xml carries the catalog's ID
-        let local = library.mods.first { $0.info?.id.lowercased() == mod.id }
-        let inst = library.installedCatalog[mod.id] ?? local.map { ["file": $0.path, "version": $0.info?.version ?? ""] }
+        let inst = Catalog.installedVersion(mod, library)
         if let j = downloads.jobs[mod.id] {
             VStack(alignment: .trailing, spacing: 2) {
-                if j.task != nil { ProgressView(value: j.progress).frame(width: 120) }
+                if j.task != nil || j.paused { ProgressView(value: j.progress).frame(width: 120) }
                 HStack(spacing: 4) {
                     Text(j.status).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
-                    if j.task == nil, j.status.contains("เบราว์เซอร์"), let u = Catalog.browserLink(mod) {
+                    if j.task == nil, !j.paused, j.status.contains("เบราว์เซอร์"), let u = Catalog.browserLink(mod) {
                         Button("เปิด") { openURL(u); downloads.cancel(mod.id) }
                     } else {
-                        Button { downloads.cancel(mod.id) } label: { Image(systemName: "xmark.circle") }.buttonStyle(.borderless)
+                        DownloadControls(id: mod.id, job: j, downloads: downloads)
                     }
                 }
             }
             .frame(width: 200, alignment: .trailing)
-        } else if let inst, inst["version"] == mod.version {
+        } else if let inst, !Catalog.isNewer(mod.version, than: inst) {
             Label("ติดตั้งแล้ว", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.caption)
+        } else if let inst {
+            Button("อัปเดต \(inst.isEmpty ? "" : inst + " → ")\(mod.version)") { downloads.start(mod) }
+                .controlSize(.small).tint(.orange)
         } else {
-            Button(inst != nil ? "อัปเดต" : "ดาวน์โหลด (\(mod.sizeText))") { downloads.start(mod) }
+            Button("ดาวน์โหลด (\(mod.sizeText))") { downloads.start(mod) }
                 .controlSize(.small)
+        }
+    }
+}
+
+/// Pause / go on / cancel for one download.
+struct DownloadControls: View {
+    let id: String
+    let job: Downloads.Job
+    @ObservedObject var downloads: Downloads
+    var body: some View {
+        HStack(spacing: 4) {
+            if job.task != nil {
+                Button { downloads.pause(id) } label: { Image(systemName: "pause.circle") }.buttonStyle(.borderless).help("หยุดไว้ก่อน (ดาวน์โหลดต่อทีหลังได้)")
+            } else if job.paused {
+                Button { downloads.resume(id) } label: { Image(systemName: "play.circle") }.buttonStyle(.borderless).help("ดาวน์โหลดต่อ")
+            }
+            Button { downloads.cancel(id) } label: { Image(systemName: "xmark.circle") }.buttonStyle(.borderless).help("ยกเลิก (ทิ้งส่วนที่โหลดมาแล้ว)")
         }
     }
 }
@@ -799,11 +881,11 @@ struct DownloadsView: View {
                             Spacer()
                             if j.task != nil {
                                 let secs = max(1, Date().timeIntervalSince(j.started))
-                                Text(String(format: "%.1f MB/s", Double(j.bytes) / 1_048_576 / secs)).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                                Text(String(format: "%.1f MB/s", Double(j.bytes - j.startBytes) / 1_048_576 / secs)).font(.caption).monospacedDigit().foregroundStyle(.secondary)
                             }
-                            Button { downloads.cancel(id) } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.borderless).help("ยกเลิก")
+                            DownloadControls(id: id, job: j, downloads: downloads)
                         }
-                        if j.task != nil { ProgressView(value: j.progress) }
+                        if j.task != nil || j.paused { ProgressView(value: j.progress) }
                         Text(j.status).font(.caption).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
@@ -968,33 +1050,38 @@ struct SavesView: View {
 // MARK: Controls
 
 struct ControlsView: View {
-    let rows: [(String, String, String)] = [
-        ("เดิน / เลื่อนเมนู", "ลูกศร", "D-pad / Stick ซ้าย"),
-        ("ตกลง (○)", "Enter หรือ K", "B / ○"),
-        ("ยกเลิก (×)", "Backspace หรือ J", "A / ×"),
-        ("เปิดเมนู (△)", "Space หรือ I", "Y / △"),
-        ("□", "Shift หรือ U", "X / □"),
-        ("L1 / R1", "Q / W", "LB / RB"),
-        ("L2 / R2", "1 / 2", "LT / RT"),
-        ("Select", "Tab", "View / Share"),
-        ("Start (หยุดเกม)", "P", "Menu / Options"),
-        ("L3 / R3", "L / R", "กดสติ๊กซ้าย / ขวา"),
-        ("โหมด shortcut ของ FFNx", "L แล้วตามด้วยปุ่ม", "L3 แล้วตามด้วยปุ่ม"),
-        ("  → ความเร็ว + / −", "W / Q", "R1 / L1"),
-        ("  → เปิด/ปิดเร่งความเร็ว", "1 หรือ 2", "L2 หรือ R2"),
-        ("  → เปิด/ปิดการเจอศัตรู", "Enter", "○"),
-        ("  → Battle enhancement", "Backspace", "×"),
-        ("  → ข้ามภาพยนตร์", "Shift", "□"),
-        ("บันทึก / โหลด save state", "Tab+Q / Tab+W", "Select+L1 / Select+R1"),
-        ("เปลี่ยนช่อง save state", "Tab+← / Tab+→", "Select+← / Select+→"),
+    @State private var map = Keymap.load()
+    var rows: [(String, String, String)] {
+        let k = { (n: String) in map.text(n) }
+        return [
+        ("เดิน / เลื่อนเมนู", "\(k("up")) \(k("down")) \(k("left")) \(k("right"))", "D-pad / Stick ซ้าย"),
+        ("ตกลง (○)", k("ok"), "B / ○"),
+        ("ยกเลิก (×)", k("cancel"), "A / ×"),
+        ("เปิดเมนู (△)", k("menu"), "Y / △"),
+        ("□", k("square"), "X / □"),
+        ("L1 / R1", "\(k("l1")) / \(k("r1"))", "LB / RB"),
+        ("L2 / R2", "\(k("l2")) / \(k("r2"))", "LT / RT"),
+        ("Select", k("select"), "View / Share"),
+        ("Start (หยุดเกม)", k("start"), "Menu / Options"),
+        ("L3 / R3", "\(k("l3")) / \(k("r3"))", "กดสติ๊กซ้าย / ขวา"),
+        ("โหมด shortcut ของ FFNx", "\(k("l3")) แล้วตามด้วยปุ่ม", "L3 แล้วตามด้วยปุ่ม"),
+        ("  → ความเร็ว + / −", "\(k("r1")) / \(k("l1"))", "R1 / L1"),
+        ("  → เปิด/ปิดเร่งความเร็ว", "\(k("l2")) หรือ \(k("r2"))", "L2 หรือ R2"),
+        ("  → เปิด/ปิดการเจอศัตรู", k("ok"), "○"),
+        ("  → Battle enhancement", k("cancel"), "×"),
+        ("  → ข้ามภาพยนตร์", k("square"), "□"),
+        ("บันทึก / โหลด save state", "\(k("select"))+\(k("l1")) / \(k("select"))+\(k("r1"))", "Select+L1 / Select+R1"),
+        ("เปลี่ยนช่อง save state", "\(k("select"))+← / \(k("select"))+→", "Select+← / Select+→"),
         ("กลับไปที่ launcher", "Cmd+L", "Select+Start ค้าง 2 วินาที"),
         ("ดู achievement (แผงทับเกม)", "F1", "Select+△"),
         ("ดู achievement (หน้าต่างแยก)", "Cmd+Shift+A", "-"),
         ("เต็มจอ", "Cmd+F", ""),
         ("ออกจากเกม", "Cmd+Q", ""),
-    ]
+        ]
+    }
     var body: some View {
         Form {
+            KeymapEditor(map: $map)
             Section("ปุ่มที่ใช้ในเกม") {
                 Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
                     GridRow { Text("หน้าที่").bold(); Text("คีย์บอร์ด").bold(); Text("จอย").bold() }
@@ -1003,7 +1090,7 @@ struct ControlsView: View {
                 }
             }
             Section {
-                Text("จอย Xbox, PlayStation และ MFi ที่เชื่อมต่อกับ Mac ใช้ได้ทันที การเปลี่ยนปุ่มทำได้ในเกมที่ Config > Controller")
+                Text("จอย Xbox, PlayStation และ MFi ที่เชื่อมต่อกับ Mac ใช้ได้ทันที การเปลี่ยนปุ่มจอยทำได้ในเกมที่ Config > Controller")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
