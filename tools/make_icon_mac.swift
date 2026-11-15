@@ -179,9 +179,9 @@ let logoURL = URL(fileURLWithPath: CommandLine.arguments.count > 2 ? CommandLine
 if let src = CGImageSourceCreateWithURL(logoURL as CFURL, nil), let logo = CGImageSourceCreateImageAtIndex(src, 0, nil) {
     ctx.saveGState()
     ctx.addPath(grip); ctx.clip()
-    ctx.translateBy(x: -270, y: -118)
-    ctx.rotate(by: 1.31)                           // along the grip, read from the butt up
-    let lw: CGFloat = 190, lh = lw * CGFloat(logo.height) / CGFloat(logo.width)
+    ctx.translateBy(x: -262, y: -120)
+    ctx.rotate(by: -0.38)                          // upright on the icon (the revolver is turned 0.38)
+    let lw: CGFloat = 92, lh = lw * CGFloat(logo.height) / CGFloat(logo.width)
     ctx.setShadow(offset: CGSize(width: 0, height: -2), blur: 4, color: rgb(0, 0, 0, 0.9))
     ctx.draw(logo, in: CGRect(x: -lw / 2, y: -lh / 2, width: lw, height: lh))
     ctx.restoreGState()
