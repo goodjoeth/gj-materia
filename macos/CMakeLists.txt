@@ -35,6 +35,7 @@ set(FF7_LAUNCHER_SOURCES
   "${FF7_ROOT}/src/mac/launcher/Achievements.swift"
   "${FF7_ROOT}/src/mac/launcher/Steam.swift"
   "${FF7_ROOT}/src/mac/launcher/GameOverlay.swift"
+  "${FF7_ROOT}/src/mac/launcher/GameFiles.swift"
   "${FF7_ROOT}/src/mac/launcher/Views.swift"
   "${FF7_ROOT}/src/mac/ff7_launcher_native.cpp"
   "${FF7_ROOT}/src/android/un7z.c"
@@ -69,3 +70,21 @@ set_target_properties(FF7Recomp PROPERTIES
   MACOSX_BUNDLE_GUI_IDENTIFIER "com.ff7recomp.mac"
   MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.2"
   MACOSX_BUNDLE_BUNDLE_VERSION "1")
+
+# The game folder's run-time files, inside the app (the launcher installs them into the game
+# folder: src/mac/launcher/GameFiles.swift): FFNx's settings and data tables, the Metal shaders
+# (tools/compile_shaders_mac.sh), the NTSC-J LUTs. Plus which exe this app was lifted from (its
+# SHA-1: the launcher only imports that exe) and where this source tree is (re-lifts for mods).
+file(SHA1 "${FF7_ROOT}/game/ff7_en.exe" FF7_EXE_SHA1)
+file(WRITE "${CMAKE_BINARY_DIR}/ff7_en.sha1" "${FF7_EXE_SHA1}\n")
+file(WRITE "${CMAKE_BINARY_DIR}/source-tree.txt" "${FF7_ROOT}\n")
+set(FF7_RES "$<TARGET_BUNDLE_CONTENT_DIR:FF7Recomp>/Resources")
+file(GLOB FF7_FFNX_TOMLS "${FF7_ROOT}/external/FFNx/misc/FFNx*.toml")
+file(GLOB FF7_LUTS "${FF7_ROOT}/external/FFNx/misc/glut_*.png")
+add_custom_command(TARGET FF7Recomp POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${FF7_RES}/ffnx/shaders"
+  COMMAND ${CMAKE_COMMAND} -E copy ${FF7_FFNX_TOMLS} "${FF7_RES}/ffnx/"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory "${FF7_ROOT}/build/shaders-mtl" "${FF7_RES}/ffnx/shaders"
+  COMMAND ${CMAKE_COMMAND} -E copy ${FF7_LUTS} "${FF7_RES}/ffnx/shaders/"
+  COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/ff7_en.sha1" "${CMAKE_BINARY_DIR}/source-tree.txt" "${FF7_RES}/"
+  VERBATIM)

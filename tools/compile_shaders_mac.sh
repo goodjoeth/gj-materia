@@ -4,6 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHADERC="$ROOT/external/bgfx/.build/osx-arm64/bin/shadercRelease"
+[ -x "$SHADERC" ] || SHADERC="$ROOT/external/bgfx/.build/osx-x64/bin/shadercRelease"
 SRC="$ROOT/external/FFNx/misc"
 INC="$ROOT/build/shader_include"
 mkdir -p "$INC/bgfx" && cp "$ROOT"/external/bgfx/src/bgfx_*.sh "$INC/bgfx/"

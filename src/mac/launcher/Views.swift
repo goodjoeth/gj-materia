@@ -16,12 +16,14 @@ final class LauncherState: ObservableObject {
     let catalog = Catalog()
     let downloads = Downloads()
     let steam = SteamLink()
+    let gameFiles = GameFiles()
     private var steamLoop: Task<Void, Never>?
     #if os(macOS)
     weak var window: NSWindow?
     #endif
     init() {
         downloads.library = library
+        GameFiles.installRuntime()          // this build's shaders and FFNx tables into the game folder
         if steam.signedIn { Task { await steam.sync() } }   // unlocks from the last session, fresh state
     }
 
@@ -117,7 +119,7 @@ struct LauncherView: View {
             switch pane ?? .play {
             case .play: PlayView(state: state, library: state.library)
             case .settings: SettingsView(state: state)
-            case .mods: MyModsView(library: state.library)
+            case .mods: MyModsView(library: state.library, gameFiles: state.gameFiles)
             case .catalog: CatalogView(catalog: state.catalog, downloads: state.downloads, library: state.library)
             case .downloads: DownloadsView(downloads: state.downloads)
             case .saves: SavesView()
@@ -141,9 +143,8 @@ struct PlayView: View {
             Spacer()
             Text("FINAL FANTASY VII").font(.system(size: 40, weight: .bold, design: .serif))
             Text("FF7Recomp").foregroundStyle(.secondary)
-            if !Paths.gameReady {
-                Label("ยังไม่มีไฟล์เกมใน \(Paths.game.path) (รัน tools/stage_game_mac.sh)", systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+            if !Paths.gameReady || state.gameFiles.dataLinkedTo != nil || !state.gameFiles.exeMatches {
+                GameFilesBox(files: state.gameFiles)
             }
             Picker("เริ่มที่", selection: $state.settings.start) {
                 Text("หน้าไตเติล").tag("title")
@@ -155,7 +156,7 @@ struct PlayView: View {
                 Label("เล่น", systemImage: "play.fill").font(.title2).frame(width: 200, height: 36)
             }
             .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-            .disabled(!Paths.gameReady)
+            .disabled(!Paths.gameReady || !state.gameFiles.exeMatches)
             let on = library.mods.filter { $0.enabled }
             Text(on.isEmpty ? "ไม่มีม็อดที่เปิดใช้" : "ม็อดที่เปิดใช้ \(on.count) ตัว: " + on.prefix(4).map { $0.title }.joined(separator: ", ") + (on.count > 4 ? " …" : ""))
                 .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 560)
@@ -171,6 +172,64 @@ struct PlayView: View {
         .navigationTitle("เล่น")
     }
 }
+
+// MARK: Game files
+
+struct GameFilesBox: View {
+    @ObservedObject var files: GameFiles
+    @State private var picking = false
+    var body: some View {
+        VStack(spacing: 8) {
+            if !Paths.gameReady {
+                Text("ยังไม่มีไฟล์เกม: เลือกโฟลเดอร์ FINAL FANTASY VII ของคุณ (เวอร์ชัน Steam)").foregroundStyle(.orange)
+            } else if !files.exeMatches {
+                Text("ไฟล์เกมในเครื่องไม่ตรงกับที่แอปนี้ถูก build มา").foregroundStyle(.orange)
+            } else if let l = files.dataLinkedTo {
+                Text("ข้อมูลเกมยังลิงก์ไปที่ \(l)\nถ้าย้ายหรือลบโฟลเดอร์นั้นเกมจะเปิดไม่ได้ (ก๊อปมาเก็บในเครื่องได้ ใช้พื้นที่ ~3.5 GB)")
+                    .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            if let b = files.busy {
+                ProgressView(value: files.progress) { Text(b).font(.caption) }.frame(width: 360)
+            } else {
+                Button { picking = true } label: { Label("นำเข้าจากโฟลเดอร์ FF7…", systemImage: "folder") }
+            }
+            if let m = files.message { Text(m).font(.caption).foregroundStyle(.secondary) }
+        }
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { r in
+            guard let u = try? r.get() else { return }
+            let ok = u.startAccessingSecurityScopedResource()
+            Task { await files.importGame(from: u); if ok { u.stopAccessingSecurityScopedResource() } }
+        }
+    }
+}
+
+#if os(macOS)
+struct ReliftView: View {
+    @ObservedObject var files: GameFiles
+    let close: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("ทำให้ม็อดเร็วขึ้น").font(.title2.bold())
+            Text("ม็อดบางตัว (เช่น Enhanced Stock UI) แก้โค้ดของเกม โค้ดส่วนนั้นจะรันผ่าน interpreter ซึ่งช้ากว่า ปุ่มนี้จะ lift โค้ดของชุดม็อดที่เปิดอยู่เข้าไปในแอปให้รันแบบ native ใช้เวลาประมาณ 5–10 นาที ทำใหม่ทุกครั้งที่เปลี่ยนชุดม็อดหรือตัวเลือกของม็อด เสร็จแล้วต้องเปิดแอปใหม่")
+                .foregroundStyle(.secondary)
+            ScrollView {
+                Text(files.log.joined(separator: "\n")).font(.system(.caption, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+            }
+            .frame(height: 200).padding(6).background(RoundedRectangle(cornerRadius: 6).fill(.quaternary))
+            if let m = files.message { Text(m).font(.callout) }
+            HStack {
+                if files.busy != nil { ProgressView().controlSize(.small); Text(files.busy ?? "").font(.caption) }
+                Spacer()
+                Button("ปิด", action: close)
+                Button("เริ่ม") { files.reliftMods() }.buttonStyle(.borderedProminent).disabled(files.busy != nil)
+                if files.message?.contains("เปิดแอปใหม่") == true { Button("ปิดแอป") { NSApp.terminate(nil) } }
+            }
+        }
+        .padding(20).frame(width: 640)
+    }
+}
+#endif
 
 // MARK: Settings
 
@@ -263,6 +322,8 @@ struct SettingsView: View {
 
 struct MyModsView: View {
     @ObservedObject var library: ModLibrary
+    var gameFiles: GameFiles? = nil
+    @State private var reliftSheet = false
     @State private var selected: InstalledMod.ID? = ProcessInfo.processInfo.environment["FF7_LAUNCHER_MOD"]   // tests
     @State private var search = ""
     @State private var conflicts: String?
@@ -287,6 +348,10 @@ struct MyModsView: View {
                     Button("ปิดทั้งหมด") { library.setAll(false) }
                     Button { conflicts = library.conflictsSummary } label: { Label("ตรวจม็อดชนกัน", systemImage: "exclamationmark.triangle") }
                     Button { importing = true } label: { Label("เพิ่มจากไฟล์…", systemImage: "plus") }
+                    #if os(macOS)
+                    Button { reliftSheet = true } label: { Label("ทำให้ม็อดเร็วขึ้น…", systemImage: "bolt") }
+                        .help("lift โค้ดที่ม็อดแก้ให้รันแบบ native แทน interpreter (ทำหลังเปลี่ยนชุดม็อด)")
+                    #endif
                 }
                 .padding(8)
                 HStack(spacing: 0) {
@@ -350,6 +415,7 @@ struct MyModsView: View {
                 Task { await library.install(u); if ok { u.stopAccessingSecurityScopedResource() } }
             }
         }
+        .sheet(isPresented: $reliftSheet) { if let g = gameFiles { ReliftView(files: g) { reliftSheet = false } } }
         .alert("ม็อดชนกัน", isPresented: Binding(get: { conflicts != nil }, set: { if !$0 { conflicts = nil } })) {
             Button("ตกลง") { conflicts = nil }
         } message: { Text(conflicts?.isEmpty == false ? conflicts! : "ไม่พบม็อดที่แก้ไฟล์เดียวกัน") }

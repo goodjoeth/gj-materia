@@ -11,7 +11,7 @@ mkdir -p "$L"
 # the 7z reader too (src/android/un7z.c: the launcher unpacks .7z mods in native code)
 for f in LzmaDec.c LzmaDec.h 7zTypes.h Precomp.h Compiler.h 7zWindows.h          7z.h 7zArcIn.c 7zBuf.c 7zBuf.h 7zCrc.c 7zCrc.h 7zCrcOpt.c 7zDec.c 7zStream.c 7zAlloc.c 7zAlloc.h          7zFile.c 7zFile.h Bcj2.c Bcj2.h Bra.c Bra.h Bra86.c BraIA64.c CpuArch.c CpuArch.h Delta.c Delta.h          Lzma2Dec.c Lzma2Dec.h RotateDefs.h Alloc.h; do
   [ -f "$L/$f" ] || curl -sfL -o "$L/$f" "https://raw.githubusercontent.com/ip7z/7zip/24.09/C/$f"
-done
+done || true
 if [ ! -d "$ROOT/external/7th-Heaven" ]; then
   git -c advice.detachedHead=false clone -q --depth 1 --branch 4.6.1 https://github.com/tsunamods-codes/7th-Heaven.git "$ROOT/external/7th-Heaven" \
     || git clone -q --depth 1 https://github.com/tsunamods-codes/7th-Heaven.git "$ROOT/external/7th-Heaven"
@@ -62,4 +62,4 @@ echo "deps ok"
 # highly_experimental includes its headers with Windows path separators.
 grep -rl 'highly_experimental\\' "$ROOT/external/deps/highly_experimental/src" | while IFS= read -r f; do
   perl -pi -e 's/highly_experimental\\/highly_experimental\//g' "$f"
-done
+done || true
