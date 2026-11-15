@@ -10,7 +10,7 @@ export PYTHONPATH="$ROOT/external/deps/pefile${PYTHONPATH:+:$PYTHONPATH}"
 N=$(sysctl -n hw.ncpu); [ "$N" -gt 8 ] && N=8
 NEW=generated/recomp.new
 rm -rf "$NEW" && mkdir -p "$NEW" build
-M=$(ls config/ffnx_manifests/*.json analysis/ffnx_manifests/*.json 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+M=$( (ls config/ffnx_manifests/*.json analysis/ffnx_manifests/*.json 2>/dev/null || true) | tr "\n" "," | sed "s/,$//")
 pids=()
 for i in $(seq 0 $((N - 1))); do
   python3 tools/run_lift.py lift game/ff7_en.exe config/catalog.json.gz "$NEW" --shard "$i/$N" --chunk-bytes 4000000 \
