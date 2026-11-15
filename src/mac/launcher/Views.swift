@@ -475,6 +475,31 @@ struct SettingsView: View {
                 }
             }
             Section {
+                // each style as it looks over the game, all three modes on
+                HStack(spacing: 10) {
+                    ForEach(0..<BoosterIcons.styles.count, id: \.self) { i in
+                        Button { state.settings.boosterIcons = i } label: {
+                            VStack(spacing: 6) {
+                                ZStack(alignment: .topTrailing) {
+                                    LinearGradient(colors: [Color(red: 0.3, green: 0.36, blue: 0.24), Color(red: 0.1, green: 0.12, blue: 0.09)],
+                                                   startPoint: .top, endPoint: .bottom)
+                                    BoosterIcons(speed: 2, noBattles: true, battlePlus: true, style: i, s: 0.42)
+                                    if i == 3 { Text("—").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity) }
+                                }
+                                .frame(width: 150, height: 74)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(state.settings.boosterIcons == i ? Color.accentColor : .clear, lineWidth: 3))
+                                Text(BoosterIcons.styles[i]).font(.caption)
+                                    .foregroundStyle(state.settings.boosterIcons == i ? .primary : .secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            } header: { Text("ไอคอนโหมดพิเศษ (มุมขวาบนระหว่างเล่น)") } footer: {
+                Text("ขึ้นเมื่อเปิดโหมดเร่งความเร็ว ปิดการเจอศัตรู หรือ Battle enhancement (กด L3 แล้วตามด้วยปุ่ม) มีผลตอนเริ่มเกมครั้งถัดไป").font(.caption)
+            }
+            Section {
                 Picker("การสั่นของจอย", selection: $state.settings.rumble) {
                     Text("ปิด").tag(0); Text("เบา").tag(1); Text("แรง").tag(2)
                 }

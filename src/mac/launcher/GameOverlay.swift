@@ -15,6 +15,7 @@ final class OverlayModel: ObservableObject {
     @Published var speed = 1
     @Published var noBattles = false
     @Published var battlePlus = false
+    let iconStyle = Settings.load().boosterIcons         // Settings > the special modes' icons
     @Published var banner: (title: String, points: Int)?
     // the achievements panel (F1 / Select+Triangle): both sets, scrolled with up / down
     @Published var panelOpen = false
@@ -60,37 +61,9 @@ struct GameOverlayView: View {
         GeometryReader { g in
             let s = g.size.height / 1080                       // sizes as on a 1080-high screen
             ZStack(alignment: .top) {
-                HStack(alignment: .top, spacing: 14 * s) {
+                HStack(alignment: .top) {
                     Spacer()
-                    // Materia colours: command (yellow), independent (purple), summon (red)
-                    if model.speed > 1 {
-                        BoosterOrb(core: Color(red: 0.98, green: 0.78, blue: 0.16), label: "SPEED", s: s) {
-                            HStack(spacing: -6 * s) {
-                                Image(systemName: "chevron.right"); Image(systemName: "chevron.right")
-                            }
-                            .font(.system(size: 22 * s, weight: .black))
-                            .overlay(alignment: .bottom) {
-                                Text("\(model.speed)×").font(.system(size: 17 * s, weight: .heavy, design: .rounded)).offset(y: 18 * s)
-                            }
-                            .offset(y: -6 * s)
-                        }
-                    }
-                    if model.noBattles {
-                        BoosterOrb(core: Color(red: 0.62, green: 0.3, blue: 0.95), label: "NO BATTLES", s: s) {
-                            ZStack {
-                                Text("!").font(.system(size: 38 * s, weight: .black, design: .serif))
-                                Capsule().frame(width: 46 * s, height: 5 * s).rotationEffect(.degrees(-45))
-                                    .shadow(color: .black.opacity(0.6), radius: 1 * s)
-                            }
-                        }
-                    }
-                    if model.battlePlus {
-                        BoosterOrb(core: Color(red: 0.95, green: 0.16, blue: 0.16), label: "BATTLE+", s: s) {
-                            Image(systemName: "heart.fill").font(.system(size: 30 * s, weight: .bold))
-                                .overlay(Image(systemName: "plus").font(.system(size: 15 * s, weight: .black))
-                                    .foregroundStyle(Color(red: 0.55, green: 0.04, blue: 0.06)))
-                        }
-                    }
+                    BoosterIcons(speed: model.speed, noBattles: model.noBattles, battlePlus: model.battlePlus, style: model.iconStyle, s: s)
                 }
                 .padding(.top, 20 * s).padding(.trailing, 24 * s)
                 .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.speed)
@@ -118,6 +91,124 @@ struct GameOverlayView: View {
         .allowsHitTesting(false)
         .animation(.easeOut(duration: 0.15), value: model.panelOpen)
         .animation(.easeInOut(duration: 0.25), value: model.banner?.title)
+    }
+}
+
+/// The special modes' icons, top right while a mode is on, in the style chosen in Settings:
+/// 0 Materia orbs, 1 the classic squares, 2 one compact strip, 3 none. Also the Settings preview.
+struct BoosterIcons: View {
+    let speed: Int
+    let noBattles: Bool
+    let battlePlus: Bool
+    let style: Int
+    let s: CGFloat
+    static let styles = ["ลูก Materia", "สี่เหลี่ยมแบบเดิม", "แถบเล็ก", "ไม่แสดง"]
+    static let yellow = Color(red: 0.98, green: 0.78, blue: 0.16), purple = Color(red: 0.62, green: 0.3, blue: 0.95),
+               red = Color(red: 0.95, green: 0.16, blue: 0.16), gold = Color(red: 1, green: 0.88, blue: 0.55)
+
+    var body: some View {
+        Group {
+            switch style {
+            case 1: classic
+            case 2: compact
+            case 3: EmptyView()
+            default: orbs
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: speed)
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: noBattles)
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: battlePlus)
+    }
+
+    // Materia colours: command (yellow), independent (purple), summon (red)
+    var orbs: some View {
+        HStack(alignment: .top, spacing: 14 * s) {
+            if speed > 1 {
+                BoosterOrb(core: Self.yellow, label: "SPEED", s: s) {
+                    HStack(spacing: -6 * s) { Image(systemName: "chevron.right"); Image(systemName: "chevron.right") }
+                        .font(.system(size: 22 * s, weight: .black))
+                        .overlay(alignment: .bottom) {
+                            Text("\(speed)×").font(.system(size: 17 * s, weight: .heavy, design: .rounded)).offset(y: 18 * s)
+                        }
+                        .offset(y: -6 * s)
+                }
+            }
+            if noBattles {
+                BoosterOrb(core: Self.purple, label: "NO BATTLES", s: s) {
+                    ZStack {
+                        Text("!").font(.system(size: 38 * s, weight: .black, design: .serif))
+                        Capsule().frame(width: 46 * s, height: 5 * s).rotationEffect(.degrees(-45)).shadow(color: .black.opacity(0.6), radius: 1 * s)
+                    }
+                }
+            }
+            if battlePlus {
+                BoosterOrb(core: Self.red, label: "BATTLE+", s: s) {
+                    Image(systemName: "heart.fill").font(.system(size: 30 * s, weight: .bold))
+                        .overlay(Image(systemName: "plus").font(.system(size: 15 * s, weight: .black)).foregroundStyle(Color(red: 0.55, green: 0.04, blue: 0.06)))
+                }
+            }
+        }
+        .padding(.top, 20 * s).padding(.trailing, 24 * s)
+    }
+
+    // the first icons: coloured squares
+    var classic: some View {
+        HStack(spacing: 12 * s) {
+            if speed > 1 {
+                square(Color(red: 0.18, green: 0.54, blue: 0.34)) {
+                    VStack(spacing: 0) {
+                        Image(systemName: "forward.fill").font(.system(size: 24 * s, weight: .bold))
+                        Text("\(speed)×").font(.system(size: 22 * s, weight: .heavy))
+                    }
+                }
+            }
+            if noBattles {
+                square(Color(red: 0.18, green: 0.37, blue: 0.66)) {
+                    ZStack {
+                        Image(systemName: "exclamationmark").font(.system(size: 34 * s, weight: .heavy))
+                        Rectangle().frame(width: 44 * s, height: 5 * s).rotationEffect(.degrees(-45))
+                    }
+                }
+            }
+            if battlePlus {
+                square(Color(red: 0.69, green: 0.19, blue: 0.29)) {
+                    Image(systemName: "heart.fill").font(.system(size: 30 * s, weight: .bold))
+                        .overlay(Image(systemName: "plus").font(.system(size: 16 * s, weight: .heavy)).foregroundStyle(Color(red: 0.69, green: 0.19, blue: 0.29)))
+                }
+            }
+        }
+        .padding(.top, 22 * s).padding(.trailing, 22 * s)
+    }
+
+    func square<C: View>(_ color: Color, @ViewBuilder _ content: () -> C) -> some View {
+        content().foregroundStyle(.white)
+            .frame(width: 64 * s, height: 64 * s)
+            .background(RoundedRectangle(cornerRadius: 14 * s).fill(color.opacity(0.8)))
+            .overlay(RoundedRectangle(cornerRadius: 14 * s).stroke(.white.opacity(0.7), lineWidth: 2.5 * s))
+            .transition(.scale(scale: 0.5).combined(with: .opacity))
+    }
+
+    // one small strip: a coloured dot and a word per mode, out of the way
+    var compact: some View {
+        HStack(spacing: 14 * s) {
+            if speed > 1 { chip(Self.yellow, "\(speed)×", "forward.fill") }
+            if noBattles { chip(Self.purple, "NO BATTLES", "exclamationmark") }
+            if battlePlus { chip(Self.red, "BATTLE+", "heart.fill") }
+        }
+        .padding(.horizontal, 14 * s).padding(.vertical, 7 * s)
+        .background(Capsule().fill(.black.opacity(0.55)))
+        .overlay(Capsule().stroke(Self.gold.opacity(0.6), lineWidth: 1.5 * s))
+        .opacity(speed > 1 || noBattles || battlePlus ? 1 : 0)
+        .padding(.top, 18 * s).padding(.trailing, 20 * s)
+    }
+
+    func chip(_ c: Color, _ text: String, _ symbol: String) -> some View {
+        HStack(spacing: 6 * s) {
+            Image(systemName: symbol).font(.system(size: 13 * s, weight: .black)).foregroundStyle(.white)
+                .frame(width: 24 * s, height: 24 * s).background(Circle().fill(c)).shadow(color: c.opacity(0.8), radius: 4 * s)
+            Text(text).font(.system(size: 15 * s, weight: .heavy, design: .rounded)).foregroundStyle(Self.gold)
+        }
+        .transition(.opacity)
     }
 }
 
