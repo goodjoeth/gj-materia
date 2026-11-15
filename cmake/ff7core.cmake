@@ -101,6 +101,8 @@ set_target_properties(ff7_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(ff7_core PUBLIC m z)    # z: save states (ff7_savestate.c)
 if(ANDROID)
   target_link_libraries(ff7_core PUBLIC aaudio)    # ff7_dsound.c mixer
+elseif(APPLE)
+  target_link_libraries(ff7_core PUBLIC "-framework AudioToolbox" "-framework CoreAudio")
 endif()
 if(NOT ANDROID)
   target_link_libraries(ff7_core PUBLIC pthread)

@@ -106,6 +106,9 @@ void hit(int i, int lost, int max, bool falls, clk::time_point now) {
     std::fprintf(stderr, "[rumble] %s %d %s, %d of %d HP\n", party ? "party" : "enemy", i,
                  falls ? "falls" : "hit", lost, max);
     if (falls && party) play(255, 450, now);
+    // FF7Recomp macOS: a big hit (most summons, strong magic and Limit Breaks) is felt harder:
+    // a third of the target's max HP, or 2000 and more
+    else if ((max > 0 && lost * 3 >= max) || lost >= 2000) play(245, 280, now);
     else play(205, 165, now);
 }
 

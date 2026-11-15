@@ -9,10 +9,14 @@ add_library(ffnx_png STATIC
   ${PNG_DIR}/png.c ${PNG_DIR}/pngerror.c ${PNG_DIR}/pngget.c ${PNG_DIR}/pngmem.c
   ${PNG_DIR}/pngpread.c ${PNG_DIR}/pngread.c ${PNG_DIR}/pngrio.c ${PNG_DIR}/pngrtran.c
   ${PNG_DIR}/pngrutil.c ${PNG_DIR}/pngset.c ${PNG_DIR}/pngtrans.c ${PNG_DIR}/pngwio.c
-  ${PNG_DIR}/pngwrite.c ${PNG_DIR}/pngwtran.c ${PNG_DIR}/pngwutil.c
-  ${PNG_DIR}/arm/arm_init.c ${PNG_DIR}/arm/filter_neon_intrinsics.c ${PNG_DIR}/arm/palette_neon_intrinsics.c)
+  ${PNG_DIR}/pngwrite.c ${PNG_DIR}/pngwtran.c ${PNG_DIR}/pngwutil.c)
 target_include_directories(ffnx_png PUBLIC "${FFNX_GEN_INC}/libpng16" "${PNG_DIR}")
-target_compile_definitions(ffnx_png PRIVATE PNG_ARM_NEON_OPT=2)
+if(APPLE AND CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64")   # macOS (Rosetta): no NEON
+  target_compile_definitions(ffnx_png PRIVATE PNG_ARM_NEON_OPT=0 PNG_INTEL_SSE_OPT=0)
+else()
+  target_sources(ffnx_png PRIVATE ${PNG_DIR}/arm/arm_init.c ${PNG_DIR}/arm/filter_neon_intrinsics.c ${PNG_DIR}/arm/palette_neon_intrinsics.c)
+  target_compile_definitions(ffnx_png PRIVATE PNG_ARM_NEON_OPT=2)
+endif()
 target_compile_options(ffnx_png PRIVATE -w)
 target_link_libraries(ffnx_png PUBLIC z)
 set_target_properties(ffnx_png PROPERTIES POSITION_INDEPENDENT_CODE ON)

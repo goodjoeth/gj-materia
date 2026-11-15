@@ -344,6 +344,8 @@ extern "C" int ff7_mods_load(const char *profile_path, const char *cache_dir) {
             char *end = nullptr;
             long v = std::strtol(val.c_str(), &end, 10);
             if (key.empty() || val.empty() || *end) continue;
+            // FF7Recomp's 21:9 (aspect_ratio 4) is a widescreen mode: mods pick their 16:9 layouts
+            if (key == "aspect_ratio" && v == 4) v = 2;
             ffnx["ffnx_" + key] = (int)v;
         }
         std::fclose(tf);

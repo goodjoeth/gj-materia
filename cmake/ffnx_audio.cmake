@@ -54,7 +54,9 @@ target_compile_definitions(ffnx_soloud PUBLIC WITH_MINIAUDIO)
 target_compile_options(ffnx_soloud PRIVATE -w)
 set_source_files_properties("${SL}/src/core/soloud_file.cpp" PROPERTIES
   COMPILE_OPTIONS "-include;${FF7_ROOT}/src/ffnx_port/include/ffnx_file_paths.h")
-if(ANDROID)
+if(APPLE)
+  target_link_libraries(ffnx_soloud PUBLIC "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation")
+elseif(ANDROID)
   target_link_libraries(ffnx_soloud PUBLIC OpenSLES aaudio log)
 endif()
 

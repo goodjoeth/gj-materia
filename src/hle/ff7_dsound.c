@@ -11,7 +11,11 @@
  * runs on AAudio's callback thread and reads that memory directly (flat memory); a mutex
  * guards the voice list and per-voice state.
  */
+#ifdef __APPLE__
+#include <AudioToolbox/AudioToolbox.h>
+#else
 #include <aaudio/AAudio.h>
+#endif
 #include <math.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -53,7 +57,12 @@ typedef struct voice {
 
 static voice g_voices[MAX_VOICES];
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
+#ifdef __APPLE__
+static AudioUnit g_unit;
+static void *g_stream;   /* non-NULL once the output unit runs */
+#else
 static AAudioStream *g_stream;
+#endif
 static int g_trace;
 
 static voice *voice_of(uint32_t obj) { return &g_voices[W32(FF7_COM_STATE(obj))]; }
@@ -92,8 +101,7 @@ static inline float sample_interp(const voice *v, uint32_t fi, float t, int ch, 
     return ((c3 * t + c2) * t + c1) * t + x1;
 }
 
-static aaudio_data_callback_result_t mix_cb(AAudioStream *s, void *user, void *audio, int32_t frames) {
-    (void)s; (void)user;
+static void mix_into(void *audio, int32_t frames) {
     float *out = (float *)audio;
     memset(out, 0, sizeof(float) * 2 * (size_t)frames);
     pthread_mutex_lock(&g_lock);
@@ -117,6 +125,41 @@ static aaudio_data_callback_result_t mix_cb(AAudioStream *s, void *user, void *a
     }
     pthread_mutex_unlock(&g_lock);
     for (int32_t i = 0; i < 2 * frames; i++) out[i] = out[i] > 1.0f ? 1.0f : out[i] < -1.0f ? -1.0f : out[i];
+}
+
+#ifdef __APPLE__
+static OSStatus mix_cb(void *user, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *ts,
+                       UInt32 bus, UInt32 frames, AudioBufferList *io) {
+    (void)user; (void)flags; (void)ts; (void)bus;
+    mix_into(io->mBuffers[0].mData, (int32_t)frames);
+    return noErr;
+}
+
+static int mixer_start(void) {
+    if (g_stream) return 0;
+    AudioComponentDescription d = { kAudioUnitType_Output, kAudioUnitSubType_DefaultOutput,
+                                    kAudioUnitManufacturer_Apple, 0, 0 };
+    AudioComponent c = AudioComponentFindNext(NULL, &d);
+    if (!c || AudioComponentInstanceNew(c, &g_unit) != noErr) { fprintf(stderr, "[dsound] no CoreAudio output\n"); return -1; }
+    AudioStreamBasicDescription f = { 0 };
+    f.mSampleRate = MIX_RATE; f.mFormatID = kAudioFormatLinearPCM;
+    f.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+    f.mChannelsPerFrame = 2; f.mBitsPerChannel = 32; f.mFramesPerPacket = 1;
+    f.mBytesPerFrame = 8; f.mBytesPerPacket = 8;
+    AudioUnitSetProperty(g_unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &f, sizeof f);
+    AURenderCallbackStruct cb = { mix_cb, NULL };
+    AudioUnitSetProperty(g_unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &cb, sizeof cb);
+    if (AudioUnitInitialize(g_unit) != noErr || AudioOutputUnitStart(g_unit) != noErr) {
+        fprintf(stderr, "[dsound] CoreAudio start failed\n"); return -1;
+    }
+    g_stream = (void *)g_unit;
+    fprintf(stderr, "[dsound] mixer: CoreAudio %d Hz stereo float\n", MIX_RATE);
+    return 0;
+}
+#else
+static aaudio_data_callback_result_t mix_cb(AAudioStream *s, void *user, void *audio, int32_t frames) {
+    (void)s; (void)user;
+    mix_into(audio, frames);
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 
@@ -137,6 +180,7 @@ static int mixer_start(void) {
     fprintf(stderr, "[dsound] mixer: AAudio %d Hz stereo float\n", AAudioStream_getSampleRate(g_stream));
     return 0;
 }
+#endif
 
 static int voice_alloc(void) {
     for (int i = 1; i < MAX_VOICES; i++) if (!g_voices[i].obj) return i;
@@ -404,8 +448,13 @@ const win32hle_shim ff7_dsound[] = {
  * the stream, or its looping buffers would keep sounding while the device sleeps. */
 void ff7_dsound_suspend(int on) {
     if (!g_stream) return;
+#ifdef __APPLE__
+    if (on) AudioOutputUnitStop(g_unit);
+    else AudioOutputUnitStart(g_unit);
+#else
     if (on) AAudioStream_requestPause(g_stream);
     else AAudioStream_requestStart(g_stream);
+#endif
 }
 
 /* ---- save states: the voice table is plain data (guest object and buffer addresses,
