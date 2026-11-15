@@ -65,7 +65,7 @@ struct TVModeView: View {
                      { d in state.settings.aspect = [0, 2, 3, 4, 1][((([0, 2, 3, 4, 1].firstIndex(of: state.settings.aspect) ?? 0) + d) % 5 + 5) % 5] }),
             .setting("Frame rate", { [L("ต้นฉบับ", "Original"), L("ต้นฉบับ (แก้จังหวะ)", "Original (fixed timing)"), L("ต่อสู้ 30", "Battles 30"), "60 FPS", "120 FPS"][state.settings.fps] },
                      { d in state.settings.fps = ((state.settings.fps + d) % 5 + 5) % 5 }),
-            .setting(L("เต็มจอ", "Full screen"), { state.settings.fullscreen ? L("เปิด", "Open") : L("ปิด", "Off") }, { _ in state.settings.fullscreen.toggle() }),
+            .setting(L("เต็มจอ", "Full screen"), { state.settings.fullscreen ? L("เปิด", "On") : L("ปิด", "Off") }, { _ in state.settings.fullscreen.toggle() }),
             .setting(L("การสั่นของจอย", "Controller rumble"), { [L("ปิด", "Off"), L("เบา", "Light"), L("แรง", "Strong")][state.settings.rumble] }, { d in state.settings.rumble = ((state.settings.rumble + d) % 3 + 3) % 3 }),
         ]
         #if os(macOS)

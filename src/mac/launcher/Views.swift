@@ -442,7 +442,7 @@ struct GameGuideView: View {
                 step("3", L("กด “ค้นหา FF7 ในเครื่อง” แล้วกด “นำเข้า”", "Press “Find FF7 on this Mac”, then “Import”"), L("แอปจะค้นใน Steam, CrossOver, Whisky, ~/FF7, Downloads, Desktop, Documents และไดรฟ์ภายนอกที่เสียบอยู่ (macOS อาจถามสิทธิ์เข้าถึงโฟลเดอร์ ให้กดอนุญาต) ไฟล์จะถูกก๊อปมาเก็บในแอป หลังนำเข้าแล้วลบโฟลเดอร์ต้นทางได้", "The app looks in Steam, CrossOver, Whisky, ~/FF7, Downloads, Desktop, Documents and connected external drives (macOS may ask for access to a folder; allow it). The files are copied into the app; you can delete the source folder afterwards."))
                 Divider()
                 Text(L("ห้ามแชร์ไฟล์เกมหรือแอปที่ build แล้วให้คนอื่น ทุกคนต้องใช้เกมที่ซื้อเอง", "Don't share the game files or the built app: everyone needs a game they bought")).font(.callout).foregroundStyle(.secondary)
-                HStack { Spacer(); Button(L("ปิด", "Off"), action: close).keyboardShortcut(.defaultAction) }
+                HStack { Spacer(); Button(L("ปิด", "Close"), action: close).keyboardShortcut(.defaultAction) }
             }
             .padding(24)
         }
@@ -481,8 +481,8 @@ struct ReliftView: View {
             HStack {
                 if files.busy != nil { ProgressView().controlSize(.small); Text(files.busy ?? "").font(.caption) }
                 Spacer()
-                Button(L("ปิด", "Off"), action: close)
-                Button(L("เริ่ม", "Start at")) { files.reliftMods() }.buttonStyle(.borderedProminent).disabled(files.busy != nil)
+                Button(L("ปิด", "Close"), action: close)
+                Button(L("เริ่ม", "Start")) { files.reliftMods() }.buttonStyle(.borderedProminent).disabled(files.busy != nil)
                 if files.message?.contains(L("เปิดแอปใหม่", "Reopen the app")) == true { Button(L("ปิดแอป", "Quit")) { NSApp.terminate(nil) } }
             }
         }
