@@ -211,6 +211,10 @@ static hitch_sample g_hs[4096];
 static std::atomic<unsigned> g_hs_n{0};
 static std::atomic<uint64_t> g_hitch_from{0}, g_hitch_to{0};
 static uint64_t now_ticks() { return mach_absolute_time(); }
+static void *hitch_self() {   // the app's own binary (its name has changed before)
+    static void *base = [] { Dl_info d; return dladdr((void *)&now_ticks, &d) ? d.dli_fbase : nullptr; }();
+    return base;
+}
 static void *hitch_thread(void *) {
     for (;;) {
         ff7r_sleep_us(1000);
@@ -233,7 +237,7 @@ static void *hitch_thread(void *) {
                 // the leaf as an offset in the app's binary (atos -o FF7Recomp -l 0x100000000 <addr>),
                 // dladdr only knows exported names
                 char top[32] = "?";
-                if (h.n && dladdr((void *)h.pc[0], &di) && di.dli_fname && std::strstr(di.dli_fname, "FF7Recomp"))
+                if (h.n && dladdr((void *)h.pc[0], &di) && di.dli_fbase == hitch_self())
                     std::snprintf(top, sizeof top, "0x%llx", (unsigned long long)(h.pc[0] - (uintptr_t)di.dli_fbase + 0x100000000ull) & ~0xFFull);
                 else if (h.n && dladdr((void *)h.pc[0], &di) && di.dli_sname) std::snprintf(top, sizeof top, "%.31s", di.dli_sname);
                 add(leaf, top);
@@ -241,7 +245,7 @@ static void *hitch_thread(void *) {
                 std::string ours = "?";
                 for (int k = 0; k < h.n; k++) {
                     if (!dladdr((void *)h.pc[k], &di) || !di.dli_sname || !di.dli_fname) continue;
-                    if (std::strstr(di.dli_fname, "FF7Recomp")) { ours = di.dli_sname; if (ours.rfind("sub_", 0) != 0 && ours.rfind("f_", 0) != 0) break; }
+                    if (di.dli_fbase == hitch_self()) { ours = di.dli_sname; if (ours.rfind("sub_", 0) != 0 && ours.rfind("f_", 0) != 0) break; }
                 }
                 add(mid, ours);
             }
@@ -582,7 +586,7 @@ extern "C" void ff7_overlay_attach(void *view);   // src/mac/launcher/GameOverla
                                               styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                                                         NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
                                                 backing:NSBackingStoreBuffered defer:NO];
-    self.window.title = @"FINAL FANTASY VII (FF7Recomp)";
+    self.window.title = @"FINAL FANTASY VII — GJ Materia";
     self.window.delegate = self;
     if (aspect != 1) self.window.contentAspectRatio = r.size;   // stretched: any shape
     FF7View *v = [[FF7View alloc] initWithFrame:r];
@@ -639,6 +643,21 @@ extern "C" void ff7_overlay_attach(void *view);   // src/mac/launcher/GameOverla
 }
 - (void)backToLauncher:(id)sender { if (self.window) request_back_to_launcher(); }
 - (void)showAchievements:(id)sender { ff7_achievements_window(); }
+// About: Good JOE made it; the projects it is built on
+- (void)showAbout:(id)sender {
+    NSMutableParagraphStyle *ps = [NSMutableParagraphStyle new];
+    ps.alignment = NSTextAlignmentCenter;
+    NSDictionary *a = @{ NSFontAttributeName: [NSFont systemFontOfSize:11], NSParagraphStyleAttributeName: ps,
+                         NSForegroundColorAttributeName: NSColor.secondaryLabelColor };
+    NSString *t = @"สร้างโดย Good JOE — github.com/goodjoeth\n\n"
+                  "FINAL FANTASY VII (เวอร์ชัน Steam) บน Mac แบบ native\n"
+                  "ต้องใช้ไฟล์เกมของคุณเอง ไม่เกี่ยวข้องกับ Square Enix\n\n"
+                  "สร้างบน FF7Recomp, FFNx, pcrecomp, bgfx, 7th Heaven และม็อดของชุมชน Qhimm / Tsunamods (GPL v3)";
+    [NSApp orderFrontStandardAboutPanelWithOptions:@{
+        NSAboutPanelOptionApplicationName: @"GJ Materia",
+        NSAboutPanelOptionCredits: [[NSAttributedString alloc] initWithString:t attributes:a] }];
+    [NSApp activateIgnoringOtherApps:YES];
+}
 - (void)quitApp:(id)sender { g_relaunch.store(false); if (self.window) ff7_launcher_game_exited(); [NSApp terminate:nil]; }
 @end
 
@@ -647,11 +666,13 @@ static void build_menu(void) {
     NSMenuItem *appItem = [NSMenuItem new];
     [bar addItem:appItem];
     NSMenu *app = [NSMenu new];
+    [app addItemWithTitle:@"About GJ Materia" action:@selector(showAbout:) keyEquivalent:@""];
+    [app addItem:[NSMenuItem separatorItem]];
     [app addItemWithTitle:@"Toggle Full Screen" action:@selector(toggleFullScreen:) keyEquivalent:@"f"];
     [app addItem:[NSMenuItem separatorItem]];
     [app addItemWithTitle:@"Achievements…" action:@selector(showAchievements:) keyEquivalent:@"A"];   // Cmd+Shift+A
     [app addItemWithTitle:@"Back to Launcher" action:@selector(backToLauncher:) keyEquivalent:@"l"];
-    [app addItemWithTitle:@"Quit FF7Recomp" action:@selector(quitApp:) keyEquivalent:@"q"];
+    [app addItemWithTitle:@"Quit GJ Materia" action:@selector(quitApp:) keyEquivalent:@"q"];
     appItem.submenu = app;
     NSApp.mainMenu = bar;
 }

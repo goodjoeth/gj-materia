@@ -69,9 +69,11 @@ target_link_options(FF7Recomp PRIVATE
   "LINKER:-segaddr,FF7GUEST,0x10000"
   "LINKER:-segprot,FF7GUEST,rw,rw")
 set_target_properties(FF7Recomp PROPERTIES
-  OUTPUT_NAME "FF7Recomp"
-  MACOSX_BUNDLE_BUNDLE_NAME "FF7Recomp"
-  MACOSX_BUNDLE_GUI_IDENTIFIER "com.ff7recomp.mac"
+  OUTPUT_NAME "GJ Materia"
+  MACOSX_BUNDLE_BUNDLE_NAME "GJ Materia"
+  MACOSX_BUNDLE_ICON_FILE "AppIcon"
+  MACOSX_BUNDLE_COPYRIGHT "GJ Materia by Good JOE. FF7Recomp port, GPL v3."
+  MACOSX_BUNDLE_GUI_IDENTIFIER "com.goodjoe.gjmateria"
   MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.2"
   MACOSX_BUNDLE_BUNDLE_VERSION "1")
 
@@ -82,6 +84,9 @@ set_target_properties(FF7Recomp PROPERTIES
 file(SHA1 "${FF7_ROOT}/game/ff7_en.exe" FF7_EXE_SHA1)
 file(WRITE "${CMAKE_BINARY_DIR}/ff7_en.sha1" "${FF7_EXE_SHA1}\n")
 file(WRITE "${CMAKE_BINARY_DIR}/source-tree.txt" "${FF7_ROOT}\n")
+# the icon (tools/make_icon_mac.sh draws it)
+target_sources(FF7Recomp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/icon/AppIcon.icns")
+set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/icon/AppIcon.icns" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 set(FF7_RES "$<TARGET_BUNDLE_CONTENT_DIR:FF7Recomp>/Resources")
 file(GLOB FF7_FFNX_TOMLS "${FF7_ROOT}/external/FFNx/misc/FFNx*.toml")
 file(GLOB FF7_LUTS "${FF7_ROOT}/external/FFNx/misc/glut_*.png")

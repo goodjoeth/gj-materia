@@ -227,7 +227,7 @@ enum SaveStates {
         let h = try FileHandle(forReadingFrom: src)
         let b = [UInt8](h.readData(ofLength: 8)); try? h.close()
         guard b.count == 8, b[0] == 0x46, b[1] == 0x46, b[2] == 0x37 else {
-            throw SaveError(message: "ไฟล์นี้ไม่ใช่ save state ของ FF7Recomp (.ff7s) — save state ของ DuckStation/RetroArch ใช้กับเวอร์ชัน PC ไม่ได้")
+            throw SaveError(message: "ไฟล์นี้ไม่ใช่ save state ของ GJ Materia / FF7Recomp (.ff7s) — save state ของ DuckStation/RetroArch ใช้กับเวอร์ชัน PC ไม่ได้")
         }
         try Paths.fm.createDirectory(at: Paths.savestates, withIntermediateDirectories: true)
         try? Paths.fm.removeItem(at: url(n))

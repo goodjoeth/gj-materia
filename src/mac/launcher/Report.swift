@@ -7,7 +7,7 @@ import Foundation
 enum Report {
     static func build() throws -> URL {
         let fm = Paths.fm
-        let dir = fm.temporaryDirectory.appendingPathComponent("FF7Recomp-report-\(Int(Date().timeIntervalSince1970))")
+        let dir = fm.temporaryDirectory.appendingPathComponent("GJMateria-report-\(Int(Date().timeIntervalSince1970))")
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         let home = NSHomeDirectory()
         func put(_ src: URL, _ name: String) {
@@ -24,7 +24,7 @@ enum Report {
         put(Paths.settings, "launcher.json")
         put(Paths.boosters, "boosters.txt")
 
-        var info = "FF7Recomp for macOS report, \(ISO8601DateFormatter().string(from: Date()))\n"
+        var info = "GJ Materia (FF7Recomp for macOS) report, \(ISO8601DateFormatter().string(from: Date()))\n"
         let p = ProcessInfo.processInfo
         info += "macOS \(p.operatingSystemVersionString), \(p.processorCount) cores, \(p.physicalMemory >> 30) GB\n"
         var size = 0; sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)

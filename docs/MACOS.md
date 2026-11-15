@@ -16,7 +16,7 @@ non-PIE with a zerofill segment reserving [0x10000, 0x80000000) for the guest (s
     cmake --build build/macos
     bash tools/stage_game_mac.sh       # ~/Library/Application Support/FF7Recomp/game
 
-Run: `open build/macos/FF7Recomp.app`. Log: `~/Library/Application Support/FF7Recomp/ff7.log`.
+Run: `open "build/macos/GJ Materia.app"`. Log: `~/Library/Application Support/FF7Recomp/ff7.log`.
 `FF7_QUICKBOOT=newgame` (running the binary directly) goes straight to a new game.
 
 ## Launcher
@@ -82,7 +82,7 @@ schema's achievement bits. It syncs when the launcher opens and every minute whi
 `FF7_PERF=1` prints frames per second and the slowest frames every 10 s. `FF7_HITCH=1` samples
 the game thread's stack every millisecond and, for each frame over 40 ms, prints where those
 samples were: system and FFNx functions by name, the rest as addresses for
-`atos -o build/macos/FF7Recomp.app/Contents/MacOS/FF7Recomp -arch x86_64 <address>`.
+`atos -o "build/macos/GJ Materia.app/Contents/MacOS/GJ Materia" -arch x86_64 <address>`.
 Scene changes used to spend most of a 100-250 ms hitch converting the game's textures and
 decoding mod PNGs (bimg's lodepng); `tools/ffnx_edit_mac.py` now gives FFNx a table-driven
 conversion and decodes PNGs with libpng. What is left is mostly reading files.

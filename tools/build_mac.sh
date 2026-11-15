@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # build_mac.sh - FF7Recomp for macOS from a fresh clone, in one command, from YOUR OWN copy of
 # FINAL FANTASY VII (the Steam release). Nothing derived from the game leaves this Mac: the
-# game's code is translated and compiled here, into build/macos/FF7Recomp.app.
+# game's code is translated and compiled here, into build/macos/GJ Materia.app.
 #
 # usage: bash tools/build_mac.sh "/path/to/FINAL FANTASY VII Steam Edition"
 #
@@ -81,10 +81,10 @@ fi
 step "7/8 compiling the app (the first time takes a while)"
 cmake -S macos -B build/macos -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null
 cmake --build build/macos -- -j"$(sysctl -n hw.ncpu)" | grep -E ' error|FAILED' && die "the build failed (see above)" || true
-[ -x build/macos/FF7Recomp.app/Contents/MacOS/FF7Recomp ] || die "the build failed"
+[ -x "build/macos/GJ Materia.app/Contents/MacOS/GJ Materia" ] || die "the build failed"
 
 step "8/8 done"
-echo "App: $ROOT/build/macos/FF7Recomp.app"
+echo "App: $ROOT/build/macos/GJ Materia.app"
 echo "Open it, then in the launcher: Play > Import from your FF7 folder (once), and Play."
-echo "Run it with:  open \"$ROOT/build/macos/FF7Recomp.app\""
+echo "Run it with:  open \"$ROOT/build/macos/GJ Materia.app\""
 echo "(You can drag the app into /Applications; keep this folder for mod re-lifts.)"

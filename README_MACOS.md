@@ -1,4 +1,6 @@
-# FF7Recomp for Mac
+# GJ Materia
+
+**by Good JOE** ([github.com/goodjoeth](https://github.com/goodjoeth)): FF7Recomp for Mac.
 
 FINAL FANTASY VII (the Steam release) as a native Mac app, with a 7th Heaven-style mod manager.
 The macOS port of [FF7Recomp](https://github.com/bhuiyah/ff7-recomp-android).
@@ -69,7 +71,7 @@ Needs macOS 13 or later, about 15 GB free and 20-30 minutes the first time.
    cd ff7recomp-mac
    bash tools/build_mac.sh            # finds the game; or pass its folder
    ```
-4. Open `build/macos/FF7Recomp.app`. On the Play page, **Find FF7 on this Mac** and **Import**
+4. Open `build/macos/GJ Materia.app`. On the Play page, **Find FF7 on this Mac** and **Import**
    (once: the game files are copied into the app's folder), then **Play**.
 
 Keep the source folder: **My mods > Make mods faster** re-lifts the enabled mods' code patches
@@ -115,6 +117,6 @@ FINAL FANTASY VII (เวอร์ชัน Steam) เป็นแอป Mac แ
 1. เตรียมไฟล์เกม (ขั้นแรกด้านบน)
 2. ติดตั้งเครื่องมือ (คำสั่งในส่วนภาษาอังกฤษด้านบน)
 3. โหลดซอร์สแล้วรัน `bash tools/build_mac.sh` (ค้นหาเกมเอง หรือใส่ path ของโฟลเดอร์เกมต่อท้าย)
-4. เปิด `build/macos/FF7Recomp.app` → หน้าเล่น → **ค้นหา FF7 ในเครื่อง** → **นำเข้า** (ครั้งเดียว) → **เล่น**
+4. เปิด `build/macos/GJ Materia.app` → หน้าเล่น → **ค้นหา FF7 ในเครื่อง** → **นำเข้า** (ครั้งเดียว) → **เล่น**
 
 เก็บโฟลเดอร์ซอร์สไว้ด้วย: ปุ่ม **ม็อดของฉัน → ทำให้ม็อดเร็วขึ้น** จะใช้มัน lift โค้ดของม็อดให้รันแบบ native

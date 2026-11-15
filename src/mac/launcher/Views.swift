@@ -229,7 +229,7 @@ struct PlayView: View {
         VStack(spacing: 22) {
             Spacer()
             Text("FINAL FANTASY VII").font(.system(size: 40, weight: .bold, design: .serif))
-            Text("FF7Recomp").foregroundStyle(.secondary)
+            Text("GJ Materia · by Good JOE").foregroundStyle(.secondary)
             if !Paths.gameReady || state.gameFiles.dataLinkedTo != nil || !state.gameFiles.exeMatches {
                 GameFilesBox(files: state.gameFiles)
             }
@@ -262,7 +262,7 @@ struct PlayView: View {
             }
             .buttonStyle(.link).padding(.bottom)
             .fileExporter(isPresented: Binding(get: { reportDoc != nil }, set: { if !$0 { reportDoc = nil } }), document: reportDoc,
-                          contentType: .zip, defaultFilename: "FF7Recomp-report.zip") { _ in reportDoc = nil }
+                          contentType: .zip, defaultFilename: "GJMateria-report.zip") { _ in reportDoc = nil }
             .alert("กำลังเล่นอยู่ที่เครื่องอื่น?", isPresented: Binding(get: { state.otherPlaying != nil }, set: { if !$0 { state.otherPlaying = nil } })) {
                 Button("เล่นต่อที่เครื่องนี้") { state.playNow() }
                 Button("ยกเลิก", role: .cancel) { state.otherPlaying = nil }
@@ -999,7 +999,7 @@ struct SavesView: View {
                         Spacer()
                         Button("นำเข้า…") { importingState = s.id }
                         if s.exists {
-                            Button("ส่งออก") { export(s.url, name: "FF7Recomp-slot" + String(format: "%02d", s.id) + ".ff7s") }
+                            Button("ส่งออก") { export(s.url, name: "GJMateria-slot" + String(format: "%02d", s.id) + ".ff7s") }
                             Button(role: .destructive) { confirmDelete = { SaveStates.delete(s.id); refresh() } } label: { Image(systemName: "trash") }
                                 .buttonStyle(.borderless)
                         }
@@ -1119,7 +1119,7 @@ public func ff7_launcher_show() {
         let s = LauncherState()
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 720),
                          styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        w.title = "FF7Recomp"
+        w.title = "GJ Materia"
         w.contentViewController = NSHostingController(rootView: LauncherView(state: s, downloads: s.downloads))
         w.setContentSize(NSSize(width: 1080, height: 720))
         w.isReleasedWhenClosed = false

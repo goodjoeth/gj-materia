@@ -295,7 +295,7 @@ final class SteamConnection: NSObject, @unchecked Sendable {
         var ip = PBWriter(); ip.fixed32(1, 0x0F7F ^ 0xBAAD_F00D)   // our own login id: other Steam sessions stay signed in
         b.message(11, ip)
         b.string(50, account)
-        b.string(96, "FF7Recomp")
+        b.string(96, "GJ Materia")
         b.string(108, token)
         let p = try await request(EMsg.logon, body: b, reply: EMsg.logOnResponse)
         let r = PBMessage(p.body)
@@ -408,9 +408,9 @@ final class SteamLink: ObservableObject {
             defer { c.close(); signInTask = nil; busy = false; qrURL = nil }
             do {
                 try await c.connect()
-                var dev = PBWriter(); dev.string(1, "FF7Recomp"); dev.uint(2, 1); dev.int(3, 16)
+                var dev = PBWriter(); dev.string(1, "GJ Materia"); dev.uint(2, 1); dev.int(3, 16)
                 var req = PBWriter()
-                req.string(1, "FF7Recomp"); req.uint(2, 1); req.message(3, dev); req.string(4, "Client")
+                req.string(1, "GJ Materia"); req.uint(2, 1); req.message(3, dev); req.string(4, "Client")
                 let (er, r) = try await c.call("Authentication.BeginAuthSessionViaQR#1", req, authed: false)
                 guard er == 1, var clientID = r.int(1), let requestID = r.bytes(3) else {
                     throw SteamError(message: "Steam ไม่สร้าง QR ให้ (EResult \(er))")
