@@ -60,32 +60,42 @@ struct GameOverlayView: View {
         GeometryReader { g in
             let s = g.size.height / 1080                       // sizes as on a 1080-high screen
             ZStack(alignment: .top) {
-                HStack(spacing: 12 * s) {
+                HStack(alignment: .top, spacing: 14 * s) {
                     Spacer()
+                    // Materia colours: command (yellow), independent (purple), summon (red)
                     if model.speed > 1 {
-                        badge(Color(red: 0.18, green: 0.54, blue: 0.34), s) {
-                            VStack(spacing: 0) {
-                                Image(systemName: "forward.fill").font(.system(size: 24 * s, weight: .bold))
-                                Text("\(model.speed)×").font(.system(size: 22 * s, weight: .heavy))
+                        BoosterOrb(core: Color(red: 0.98, green: 0.78, blue: 0.16), label: "SPEED", s: s) {
+                            HStack(spacing: -6 * s) {
+                                Image(systemName: "chevron.right"); Image(systemName: "chevron.right")
                             }
+                            .font(.system(size: 22 * s, weight: .black))
+                            .overlay(alignment: .bottom) {
+                                Text("\(model.speed)×").font(.system(size: 17 * s, weight: .heavy, design: .rounded)).offset(y: 18 * s)
+                            }
+                            .offset(y: -6 * s)
                         }
                     }
                     if model.noBattles {
-                        badge(Color(red: 0.18, green: 0.37, blue: 0.66), s) {
+                        BoosterOrb(core: Color(red: 0.62, green: 0.3, blue: 0.95), label: "NO BATTLES", s: s) {
                             ZStack {
-                                Image(systemName: "exclamationmark").font(.system(size: 34 * s, weight: .heavy))
-                                Rectangle().frame(width: 44 * s, height: 5 * s).rotationEffect(.degrees(-45))
+                                Text("!").font(.system(size: 38 * s, weight: .black, design: .serif))
+                                Capsule().frame(width: 46 * s, height: 5 * s).rotationEffect(.degrees(-45))
+                                    .shadow(color: .black.opacity(0.6), radius: 1 * s)
                             }
                         }
                     }
                     if model.battlePlus {
-                        badge(Color(red: 0.69, green: 0.19, blue: 0.29), s) {
+                        BoosterOrb(core: Color(red: 0.95, green: 0.16, blue: 0.16), label: "BATTLE+", s: s) {
                             Image(systemName: "heart.fill").font(.system(size: 30 * s, weight: .bold))
-                                .overlay(Image(systemName: "plus").font(.system(size: 16 * s, weight: .heavy)).foregroundStyle(Color(red: 0.69, green: 0.19, blue: 0.29)))
+                                .overlay(Image(systemName: "plus").font(.system(size: 15 * s, weight: .black))
+                                    .foregroundStyle(Color(red: 0.55, green: 0.04, blue: 0.06)))
                         }
                     }
                 }
-                .padding(.top, 22 * s).padding(.trailing, 22 * s)
+                .padding(.top, 20 * s).padding(.trailing, 24 * s)
+                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.speed)
+                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.noBattles)
+                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: model.battlePlus)
                 if let b = model.banner {
                     HStack(spacing: 20 * s) {
                         Image(systemName: "star.fill").font(.system(size: 54 * s)).foregroundStyle(Color(red: 0.91, green: 0.76, blue: 0.35))
@@ -109,12 +119,43 @@ struct GameOverlayView: View {
         .animation(.easeOut(duration: 0.15), value: model.panelOpen)
         .animation(.easeInOut(duration: 0.25), value: model.banner?.title)
     }
+}
 
-    func badge<C: View>(_ color: Color, _ s: CGFloat, @ViewBuilder _ content: () -> C) -> some View {
-        content().foregroundStyle(.white)
-            .frame(width: 64 * s, height: 64 * s)
-            .background(RoundedRectangle(cornerRadius: 14 * s).fill(color.opacity(0.8)))
-            .overlay(RoundedRectangle(cornerRadius: 14 * s).stroke(.white.opacity(0.7), lineWidth: 2.5 * s))
+/// A special mode's icon (top right while it is on): a Materia orb in the mode's colour, held in a
+/// gunmetal-and-gold setting like the app icon, its sign in white, its name under it.
+struct BoosterOrb<Glyph: View>: View {
+    let core: Color
+    let label: String
+    let s: CGFloat
+    @ViewBuilder var glyph: () -> Glyph
+
+    var body: some View {
+        VStack(spacing: 5 * s) {
+            ZStack {
+                // the setting: a gold ring on a dark steel disc
+                Circle().fill(LinearGradient(colors: [Color(white: 0.42), Color(white: 0.12)], startPoint: .top, endPoint: .bottom))
+                Circle().strokeBorder(LinearGradient(colors: [Color(red: 1, green: 0.9, blue: 0.55), Color(red: 0.86, green: 0.6, blue: 0.18),
+                                                              Color(red: 0.5, green: 0.3, blue: 0.06)], startPoint: .top, endPoint: .bottom),
+                                      lineWidth: 4 * s)
+                // the orb
+                Circle()
+                    .fill(RadialGradient(colors: [core.opacity(1), core.opacity(0.85), .black.opacity(0.85)],
+                                         center: UnitPoint(x: 0.38, y: 0.32), startRadius: 0, endRadius: 34 * s))
+                    .padding(8 * s)
+                    .shadow(color: core.opacity(0.8), radius: 8 * s)
+                glyph().foregroundStyle(.white).shadow(color: .black.opacity(0.7), radius: 2 * s, y: 1 * s)
+                // glass highlight
+                Ellipse().fill(LinearGradient(colors: [.white.opacity(0.65), .white.opacity(0)], startPoint: .top, endPoint: .bottom))
+                    .frame(width: 30 * s, height: 16 * s).offset(x: -9 * s, y: -17 * s)
+            }
+            .frame(width: 76 * s, height: 76 * s)
+            .shadow(color: .black.opacity(0.6), radius: 6 * s, y: 3 * s)
+            Text(label).font(.system(size: 12 * s, weight: .heavy, design: .rounded)).tracking(1 * s)
+                .foregroundStyle(Color(red: 1, green: 0.88, blue: 0.55))
+                .padding(.horizontal, 7 * s).padding(.vertical, 2 * s)
+                .background(Capsule().fill(.black.opacity(0.6)))
+        }
+        .transition(.scale(scale: 0.5).combined(with: .opacity))
     }
 }
 
