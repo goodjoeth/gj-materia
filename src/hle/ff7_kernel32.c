@@ -428,6 +428,16 @@ static void k_LCMapStringW(void) {
     }
     RET((uint32_t)n, 6);
 }
+/* ExitProcess: as win32hle's (the process ends at once), but a platform that has something to do
+ * first (the macOS app opens its launcher again) is told. */
+void ff7_platform_exit(int code) __attribute__((weak));
+static void k_ExitProcess(void) {
+    fflush(NULL);
+    if (ff7_platform_exit) ff7_platform_exit((int)A32(0));
+    usleep(200000);
+    _exit((int)A32(0));
+}
+
 static const char *locale_value(uint32_t type) {
     switch (type & 0xFFFFu) {
         case 0x0B: return "437";      /* LOCALE_IDEFAULTCODEPAGE (OEM) */
@@ -521,5 +531,6 @@ const win32hle_shim ff7_kernel32[] = {
     { "CoInitialize", k_CoInitialize },
     { "CoUninitialize", k_CoUninitialize },
     { "CoCreateInstance", k_CoCreateInstance },
+    { "ExitProcess", k_ExitProcess },
     { NULL, NULL }
 };

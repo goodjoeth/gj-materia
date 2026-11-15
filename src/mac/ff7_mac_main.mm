@@ -11,7 +11,7 @@
 //   Shift / U    Square             Q / W       L1 / R1
 //   1 / 2        L2 / R2            Tab         Select     P   Start
 //   L / R        L3 / R3 (L3: FFNx's shortcut mode: then W/Q speed, Enter battles, Backspace battle+)
-//   Cmd+F        fullscreen         Cmd+Q       quit
+//   Cmd+F        fullscreen         Cmd+Q       quit        Cmd+L / Select+Start held 2 s: back to the launcher
 #import <Cocoa/Cocoa.h>
 #import <GameController/GameController.h>
 #import <QuartzCore/CAMetalLayer.h>
@@ -40,6 +40,11 @@ std::atomic<unsigned short> g_key_buttons{ 0 };
 std::atomic<unsigned char> g_key_lt{ 0 }, g_key_rt{ 0 };
 std::atomic<unsigned short> g_inject{ 0 };
 std::atomic<bool> g_autofire{ false };
+// Back to the launcher: WM_CLOSE to the game's window (on the game thread, as the window's close
+// button ends it on Windows), then a fresh instance of the app opens on the launcher.
+std::atomic<bool> g_quit{ false };
+std::atomic<bool> g_relaunch{ true };
+std::chrono::steady_clock::time_point g_leave_held;   // Select+Start held since
 
 enum : unsigned short {
     XI_UP = 0x0001, XI_DOWN = 0x0002, XI_LEFT = 0x0004, XI_RIGHT = 0x0008,
@@ -88,11 +93,38 @@ void *test_input_thread(void *arg) {
     return nullptr;
 }
 
+void relaunch_and_quit() {
+    if (g_relaunch.load()) {
+        NSWorkspaceOpenConfiguration *cfg = [NSWorkspaceOpenConfiguration configuration];
+        cfg.createsNewApplicationInstance = YES;
+        [[NSWorkspace sharedWorkspace] openApplicationAtURL:[[NSBundle mainBundle] bundleURL] configuration:cfg
+                                          completionHandler:^(NSRunningApplication *, NSError *) {
+            dispatch_async(dispatch_get_main_queue(), ^{ [NSApp terminate:nil]; });
+        }];
+    } else {
+        [NSApp terminate:nil];
+    }
+}
+
+// The game ended (ExitProcess, src/hle/ff7_kernel32.c): the process ends right after, so the
+// launcher is opened now, from the game thread, and waited for.
+extern "C" void ff7_platform_exit(int code) {
+    std::fprintf(stderr, "[ff7] game exited (%d)%s\n", code, g_relaunch.load() ? ": opening the launcher" : "");
+    std::fflush(stderr);
+    if (!g_relaunch.load()) return;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    NSWorkspaceOpenConfiguration *cfg = [NSWorkspaceOpenConfiguration configuration];
+    cfg.createsNewApplicationInstance = YES;
+    [[NSWorkspace sharedWorkspace] openApplicationAtURL:[[NSBundle mainBundle] bundleURL] configuration:cfg
+                                      completionHandler:^(NSRunningApplication *, NSError *) { dispatch_semaphore_signal(done); }];
+    dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+}
+
 void *game_thread(void *) {
     int rc = ff7_boot_and_run(g_game_dir.c_str());
     std::fprintf(stderr, "[ff7] game finished with %d\n", rc);
     std::fflush(stderr);
-    dispatch_async(dispatch_get_main_queue(), ^{ [NSApp terminate:nil]; });
+    dispatch_async(dispatch_get_main_queue(), ^{ relaunch_and_quit(); });
     return nullptr;
 }
 
@@ -147,8 +179,24 @@ static short axis(float v) {
     return (short)(c > 32767.0f ? 32767 : c < -32768.0f ? -32768 : c);
 }
 
+extern "C" void hle_post_message(uint32_t hwnd, uint32_t message, uint32_t wParam, uint32_t lParam);
+extern "C" uint32_t hle_first_hwnd(void);
+
+// The launcher, from the game: the menu, the window's close button, or Select+Start held 2 s.
+void request_back_to_launcher() {
+    if (g_quit.exchange(true)) return;
+    std::fprintf(stderr, "[ff7] back to the launcher\n");
+    // a game that does not end within a few seconds is left anyway
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ relaunch_and_quit(); });
+}
+
 extern "C" int ff7_platform_pad_state(unsigned index, ff7_pad_state *out) {
     if (index != 0) return 0;
+    static bool quit_sent;
+    if (g_quit.load() && !quit_sent) {
+        quit_sent = true;
+        if (uint32_t hwnd = hle_first_hwnd()) hle_post_message(hwnd, 0x0010u /* WM_CLOSE */, 0, 0);
+    }
     std::memset(out, 0, sizeof *out);
     out->buttons = g_key_buttons.load() | g_inject.load();
     out->left_trigger = g_key_lt.load();
@@ -183,6 +231,17 @@ extern "C" int ff7_platform_pad_state(unsigned index, ff7_pad_state *out) {
             out->ry = axis(g.rightThumbstick.yAxis.value);
             break;
         }
+    }
+    // Select+Start held 2 s: back to the launcher
+    const auto now = std::chrono::steady_clock::now();
+    if ((out->buttons & (XI_BACK | XI_START)) == (XI_BACK | XI_START)) {
+        if (g_leave_held == std::chrono::steady_clock::time_point{}) g_leave_held = now;
+        else if (now - g_leave_held > std::chrono::seconds(2)) {
+            g_leave_held = {};
+            dispatch_async(dispatch_get_main_queue(), ^{ request_back_to_launcher(); });
+        }
+    } else {
+        g_leave_held = {};
     }
     return 1;
 }
@@ -358,6 +417,13 @@ extern "C" void ff7_overlay_attach(void *view);   // src/mac/launcher/GameOverla
     if (fullscreen) [self.window toggleFullScreen:nil];
 }
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)s { return YES; }
+- (BOOL)windowShouldClose:(NSWindow *)w {
+    if (w != self.window) return YES;
+    request_back_to_launcher();                       // the game ends, the launcher comes back
+    return NO;
+}
+- (void)backToLauncher:(id)sender { if (self.window) request_back_to_launcher(); }
+- (void)quitApp:(id)sender { g_relaunch.store(false); [NSApp terminate:nil]; }
 @end
 
 static void build_menu(void) {
@@ -367,7 +433,8 @@ static void build_menu(void) {
     NSMenu *app = [NSMenu new];
     [app addItemWithTitle:@"Toggle Full Screen" action:@selector(toggleFullScreen:) keyEquivalent:@"f"];
     [app addItem:[NSMenuItem separatorItem]];
-    [app addItemWithTitle:@"Quit FF7Recomp" action:@selector(terminate:) keyEquivalent:@"q"];
+    [app addItemWithTitle:@"Back to Launcher" action:@selector(backToLauncher:) keyEquivalent:@"l"];
+    [app addItemWithTitle:@"Quit FF7Recomp" action:@selector(quitApp:) keyEquivalent:@"q"];
     appItem.submenu = app;
     NSApp.mainMenu = bar;
 }

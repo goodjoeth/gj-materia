@@ -94,7 +94,7 @@ struct SteamView: View {
                 if steam.busy && steam.qrURL == nil { ProgressView().controlSize(.small) }
                 if let s = steam.status { Text(s).font(.callout).foregroundStyle(.secondary) }
             } header: { Text("Steam") } footer: {
-                Text("FFNx เป็นตัวตัดสินว่าได้ achievement เมื่อไร แล้ว launcher ส่งขึ้น Steam (ระหว่างเล่นทุก 1 นาที และตอนเปิด launcher) token ของ Steam เก็บใน Keychain ของเครื่องนี้")
+                Text("FFNx เป็นตัวตัดสินว่าได้ achievement เมื่อไร แล้ว launcher ส่งขึ้น Steam (ระหว่างเล่นทุก 1 นาที และตอนเปิด launcher) token ของ Steam เก็บเป็นไฟล์ที่อ่านได้เฉพาะบัญชีผู้ใช้นี้")
                     .font(.caption)
             }
             if !steam.achievements.isEmpty {

@@ -36,6 +36,8 @@ set(FF7_LAUNCHER_SOURCES
   "${FF7_ROOT}/src/mac/launcher/Steam.swift"
   "${FF7_ROOT}/src/mac/launcher/GameOverlay.swift"
   "${FF7_ROOT}/src/mac/launcher/GameFiles.swift"
+  "${FF7_ROOT}/src/mac/launcher/TVMode.swift"
+  "${FF7_ROOT}/src/mac/launcher/Report.swift"
   "${FF7_ROOT}/src/mac/launcher/Views.swift"
   "${FF7_ROOT}/src/mac/ff7_launcher_native.cpp"
   "${FF7_ROOT}/src/android/un7z.c"
@@ -88,3 +90,8 @@ add_custom_command(TARGET FF7Recomp POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy ${FF7_LUTS} "${FF7_RES}/ffnx/shaders/"
   COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/ff7_en.sha1" "${CMAKE_BINARY_DIR}/source-tree.txt" "${FF7_RES}/"
   VERBATIM)
+# The build (for bug reports: Report.swift)
+execute_process(COMMAND git -C "${FF7_ROOT}" describe --always --dirty OUTPUT_VARIABLE FF7_GIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+file(WRITE "${CMAKE_BINARY_DIR}/build-info.txt" "${FF7_GIT} (macos branch)\n")
+add_custom_command(TARGET FF7Recomp POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/build-info.txt" "${FF7_RES}/" VERBATIM)

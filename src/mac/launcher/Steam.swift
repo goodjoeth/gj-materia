@@ -569,26 +569,36 @@ final class SteamLink: ObservableObject {
     }
 }
 
-// MARK: Keychain (the refresh token)
+// MARK: the refresh token
+//
+// Kept in a file only this user can read (steam/token, mode 0600), as the Android app keeps it in
+// its private storage. Not the Keychain: an app built on this Mac is signed ad hoc, so every
+// rebuild (a mod re-lift, an update) is a new app to the Keychain, which then stops the launcher
+// with a password prompt (even reading an older version's item would).
 
 enum Keychain {
     static let service = "com.ff7recomp.steam"
+    static var dir: URL { Paths.base.appendingPathComponent("steam") }
+    static var file: URL { dir.appendingPathComponent("token") }
+    private static var cache: [String: String] = [:]
+
     static func set(_ account: String, _ token: String) {
-        delete(account)
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-                                kSecAttrAccount as String: account, kSecValueData as String: Data(token.utf8),
-                                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock]
-        SecItemAdd(q as CFDictionary, nil)
+        try? Paths.fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let line = account + "\n" + token + "\n"
+        Paths.fm.createFile(atPath: file.path, contents: Data(line.utf8), attributes: [.posixPermissions: 0o600])
+        try? Paths.fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        cache[account] = token
     }
     static func get(_ account: String) -> String? {
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-                                kSecAttrAccount as String: account, kSecReturnData as String: true]
-        var r: CFTypeRef?
-        guard SecItemCopyMatching(q as CFDictionary, &r) == errSecSuccess, let d = r as? Data else { return nil }
-        return String(data: d, encoding: .utf8)
+        if let t = cache[account] { return t }
+        if let s = try? String(contentsOf: file, encoding: .utf8) {
+            let l = s.split(separator: "\n").map(String.init)
+            if l.count >= 2, l[0] == account { cache[account] = l[1]; return l[1] }
+        }
+        return nil
     }
     static func delete(_ account: String) {
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
-        SecItemDelete(q as CFDictionary)
+        cache[account] = nil
+        try? Paths.fm.removeItem(at: file)
     }
 }

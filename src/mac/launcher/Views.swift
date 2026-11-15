@@ -17,6 +17,7 @@ final class LauncherState: ObservableObject {
     let downloads = Downloads()
     let steam = SteamLink()
     let gameFiles = GameFiles()
+    let pad = PadInput()
     private var steamLoop: Task<Void, Never>?
     #if os(macOS)
     weak var window: NSWindow?
@@ -90,6 +91,7 @@ struct LocalImage: View {
 /// Bytes for fileExporter.
 struct BytesDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.data] }
+    static var writableContentTypes: [UTType] { [.data, .zip] }
     var data: Data
     init(_ d: Data) { data = d }
     init(configuration: ReadConfiguration) throws { data = configuration.file.regularFileContents ?? Data() }
@@ -100,8 +102,22 @@ struct LauncherView: View {
     @ObservedObject var state: LauncherState
     @ObservedObject var downloads: Downloads
     @State private var pane: Pane? = Pane.allCases.first { $0.icon == ProcessInfo.processInfo.environment["FF7_LAUNCHER_PANE"] } ?? .play
+    @State private var tvMode = ProcessInfo.processInfo.environment["FF7_LAUNCHER_TV"] != nil
 
     var body: some View {
+        ZStack {
+            normal
+            if tvMode { TVModeView(state: state, library: state.library, pad: state.pad) { tvMode = false }.transition(.opacity) }
+        }
+        .animation(.easeInOut(duration: 0.2), value: tvMode)
+        .onAppear(perform: armPad)
+        .onChange(of: tvMode) { _ in armPad() }
+    }
+
+    /// Outside TV mode, any controller button opens it.
+    func armPad() { if !tvMode { state.pad.onPress = { _ in tvMode = true } } }
+
+    var normal: some View {
         NavigationSplitView {
             List(Pane.allCases, selection: $pane) { p in
                 HStack {
@@ -137,6 +153,8 @@ struct PlayView: View {
     @ObservedObject var state: LauncherState
     @ObservedObject var library: ModLibrary
     @Environment(\.openURL) private var openURL
+    @State private var reportDoc: BytesDocument?
+    @State private var reportError: String?
 
     var body: some View {
         VStack(spacing: 22) {
@@ -162,11 +180,22 @@ struct PlayView: View {
                 .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 560)
             if let e = library.lastError { Text(e).foregroundStyle(.red) }
             Spacer()
+            Text("มีจอย? กดปุ่มใดก็ได้บนจอยเพื่อเข้าโหมดทีวี").font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("เปิดโฟลเดอร์เกม") { openURL(Paths.base) }
                 Button("เปิด log ล่าสุด") { openURL(Paths.log) }
+                Button("รายงานปัญหา…") {
+                    do { reportDoc = BytesDocument(try Data(contentsOf: Report.build())) }
+                    catch { reportError = error.localizedDescription }
+                }
+                .help("รวม log ตั้งค่า และรายการม็อดเป็นไฟล์ .zip ไฟล์เดียว (ไม่มีไฟล์เกมและข้อมูลบัญชี Steam) แนบไปกับรายงานบั๊กได้เลย")
             }
             .buttonStyle(.link).padding(.bottom)
+            .fileExporter(isPresented: Binding(get: { reportDoc != nil }, set: { if !$0 { reportDoc = nil } }), document: reportDoc,
+                          contentType: .zip, defaultFilename: "FF7Recomp-report.zip") { _ in reportDoc = nil }
+            .alert("สร้างไฟล์รายงานไม่ได้", isPresented: Binding(get: { reportError != nil }, set: { if !$0 { reportError = nil } })) {
+                Button("ตกลง") { reportError = nil }
+            } message: { Text(reportError ?? "") }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("เล่น")
@@ -848,6 +877,7 @@ struct ControlsView: View {
         ("  → ข้ามภาพยนตร์", "Shift", "□"),
         ("บันทึก / โหลด save state", "Tab+Q / Tab+W", "Select+L1 / Select+R1"),
         ("เปลี่ยนช่อง save state", "Tab+← / Tab+→", "Select+← / Select+→"),
+        ("กลับไปที่ launcher", "Cmd+L", "Select+Start ค้าง 2 วินาที"),
         ("เต็มจอ", "Cmd+F", ""),
         ("ออกจากเกม", "Cmd+Q", ""),
     ]
