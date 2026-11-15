@@ -106,7 +106,7 @@ struct LauncherView: View {
 
     var body: some View {
         ZStack {
-            normal
+            if !tvMode { normal }
             if tvMode { TVModeView(state: state, library: state.library, pad: state.pad) { tvMode = false }.transition(.opacity) }
         }
         .animation(.easeInOut(duration: 0.2), value: tvMode)
@@ -207,7 +207,7 @@ struct PlayView: View {
 struct GameFilesBox: View {
     @ObservedObject var files: GameFiles
     @State private var picking = false
-    @State private var showGuide = false
+    @State private var showGuide = ProcessInfo.processInfo.environment["FF7_LAUNCHER_GUIDE"] != nil   // tests
     var body: some View {
         VStack(spacing: 10) {
             if !Paths.gameReady {
@@ -215,7 +215,7 @@ struct GameFilesBox: View {
             } else if !files.exeMatches {
                 Text("ไฟล์เกมในเครื่องไม่ตรงกับที่แอปนี้ถูก build มา").foregroundStyle(.orange)
             } else if let l = files.dataLinkedTo {
-                Text("ข้อมูลเกมยังลิงก์ไปที่ \(l)\nถ้าย้ายหรือลบโฟลเดอร์นั้นเกมจะเปิดไม่ได้ (ก๊อปมาเก็บในเครื่องได้)")
+                Text("ข้อมูลเกมยังลิงก์ไปที่ \(l.replacingOccurrences(of: NSHomeDirectory(), with: "~"))\nถ้าย้ายหรือลบโฟลเดอร์นั้นเกมจะเปิดไม่ได้ กด “ค้นหา FF7 ในเครื่อง” แล้ว “นำเข้า” เพื่อก๊อปมาเก็บในแอป")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             if let b = files.busy {
