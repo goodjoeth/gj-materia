@@ -1,6 +1,6 @@
 // make_icon_mac.swift - draws the GJ Materia icon (1024x1024 PNG): a red Meteor hanging in a dark
 // sky, a three-barrelled revolver across it (Vincent's colours: gunmetal and gold) with "GJ" on
-// the grip, "VII" in the top-left corner, and a red cloak's torn edge along the bottom. An original drawing, nothing from the
+// the grip, a large "VII" behind it, and a red cloak's torn edge along the bottom. An original drawing, nothing from the
 // game. tools/make_icon_mac.sh turns it into macos/icon/AppIcon.icns.
 //   swift tools/make_icon_mac.swift out.png
 import CoreGraphics
@@ -80,6 +80,40 @@ cloak.addLine(to: CGPoint(x: 924, y: 100))
 cloak.closeSubpath()
 fill(cloak, grad([(0, rgb(0.55, 0.03, 0.07)), (1, rgb(0.18, 0.01, 0.03))]), CGPoint(x: 512, y: 240), CGPoint(x: 512, y: 100))
 
+// "VII" large in the top-left, behind the revolver: silver with a gold edge, engraved
+do {
+    let f = CTFontCreateWithName("Didot-Bold" as CFString, 230, nil)
+    let l = CTLineCreateWithAttributedString(NSAttributedString(string: "VII", attributes: [
+        NSAttributedString.Key(kCTFontAttributeName as String): f,
+        NSAttributedString.Key(kCTForegroundColorAttributeName as String): rgb(1, 1, 1)]))
+    ctx.textPosition = .zero
+    let b = CTLineGetImageBounds(l, ctx)
+    let o = CGPoint(x: 190 - b.minX, y: 800 - b.maxY)
+    ctx.saveGState()   // gold outline under it, with a shadow
+    ctx.setShadow(offset: CGSize(width: 0, height: -6), blur: 12, color: rgb(0, 0, 0, 0.85))
+    ctx.textPosition = o
+    ctx.setTextDrawingMode(.fillStroke)
+    ctx.setLineWidth(8); ctx.setLineJoin(.round)
+    ctx.setStrokeColor(rgb(0.86, 0.6, 0.2)); ctx.setFillColor(rgb(0.86, 0.6, 0.2))
+    CTLineDraw(l, ctx)
+    ctx.restoreGState()
+    // the letters as a path (a text clip lingers past restoreGState and hid later text)
+    let letters = CGMutablePath()
+    for run in CTLineGetGlyphRuns(l) as! [CTRun] {
+        let n = CTRunGetGlyphCount(run)
+        var glyphs = [CGGlyph](repeating: 0, count: n), pos = [CGPoint](repeating: .zero, count: n)
+        CTRunGetGlyphs(run, CFRange(location: 0, length: n), &glyphs)
+        CTRunGetPositions(run, CFRange(location: 0, length: n), &pos)
+        for k in 0..<n {
+            if let gp = CTFontCreatePathForGlyph(f, glyphs[k], nil) {
+                letters.addPath(gp, transform: CGAffineTransform(translationX: o.x + pos[k].x, y: o.y + pos[k].y))
+            }
+        }
+    }
+    fill(letters, grad([(0, rgb(0.98, 0.98, 1)), (0.5, rgb(0.72, 0.74, 0.8)), (1, rgb(0.42, 0.44, 0.5))]),
+         CGPoint(x: 0, y: o.y + b.maxY), CGPoint(x: 0, y: o.y + b.minY))
+}
+
 // ---- the revolver: three barrels, drawn pointing right, then turned up about 22 degrees
 let barrels: [CGFloat] = [36, 0, -36]                 // centre lines; each 32 high
 let barrelLen: CGFloat = 400
@@ -147,37 +181,14 @@ let line = CTLineCreateWithAttributedString(NSAttributedString(string: "GJ", att
 ctx.saveGState()
 ctx.translateBy(x: -268, y: -125)
 ctx.rotate(by: 1.33)
+ctx.textPosition = .zero   // image bounds are measured from the current text position
 let tb = CTLineGetImageBounds(line, ctx)
 ctx.textPosition = CGPoint(x: -tb.width / 2 - tb.minX, y: -tb.height / 2 - tb.minY)
 ctx.setShadow(offset: CGSize(width: 0, height: -2), blur: 3, color: rgb(0, 0, 0, 0.9))
+ctx.setTextDrawingMode(.fill)
 CTLineDraw(line, ctx)
 ctx.restoreGState()
 ctx.restoreGState()   // the revolver's frame of reference
-
-// "VII" in the top-left corner: silver with a gold edge, engraved
-do {
-    let f = CTFontCreateWithName("Didot-Bold" as CFString, 128, nil)
-    let l = CTLineCreateWithAttributedString(NSAttributedString(string: "VII", attributes: [
-        NSAttributedString.Key(kCTFontAttributeName as String): f,
-        NSAttributedString.Key(kCTForegroundColorAttributeName as String): rgb(1, 1, 1)]))
-    let b = CTLineGetImageBounds(l, ctx)
-    let o = CGPoint(x: 228 - b.minX, y: 812 - b.maxY)
-    ctx.saveGState()   // gold outline under it, with a shadow
-    ctx.setShadow(offset: CGSize(width: 0, height: -6), blur: 12, color: rgb(0, 0, 0, 0.85))
-    ctx.textPosition = o
-    ctx.setTextDrawingMode(.fillStroke)
-    ctx.setLineWidth(8); ctx.setLineJoin(.round)
-    ctx.setStrokeColor(rgb(0.86, 0.6, 0.2)); ctx.setFillColor(rgb(0.86, 0.6, 0.2))
-    CTLineDraw(l, ctx)
-    ctx.restoreGState()
-    ctx.saveGState()   // the letters: a silver gradient
-    ctx.textPosition = o
-    ctx.setTextDrawingMode(.clip)
-    CTLineDraw(l, ctx)
-    ctx.drawLinearGradient(grad([(0, rgb(0.98, 0.98, 1)), (0.5, rgb(0.72, 0.74, 0.8)), (1, rgb(0.42, 0.44, 0.5))]),
-                           start: CGPoint(x: 0, y: o.y + b.maxY), end: CGPoint(x: 0, y: o.y + b.minY), options: [])
-    ctx.restoreGState()
-}
 
 ctx.restoreGState()   // the tile
 
