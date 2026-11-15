@@ -134,6 +134,30 @@ int main(int argc, char **argv) {
         Run r;
         r.img = exe;
         ff7_mods_hext(on_hext, &r);
+        // Writes that land in the same instructions (two mods, or two files of one mod, patching
+        // the same code: an opcode here, an operand there) leave bytes no single write produced, and
+        // the game checks the final bytes. So the final image over each cluster of nearby writes
+        // (within 16 bytes of each other) is a variant too.
+        {
+            std::vector<std::pair<uint32_t, uint32_t>> spans;   // [start, end)
+            for (const Run::W &w : r.writes) spans.push_back({ w.va, w.va + (uint32_t)w.b.size() });
+            std::sort(spans.begin(), spans.end());
+            std::vector<std::pair<uint32_t, uint32_t>> merged;
+            for (auto sp : spans) {
+                if (!merged.empty() && sp.first <= merged.back().second + 16) merged.back().second = std::max(merged.back().second, sp.second);
+                else merged.push_back(sp);
+            }
+            size_t n0 = r.writes.size();
+            for (auto m : merged) {
+                const uint8_t *p = r.img.at(m.first, m.second - m.first);
+                if (!p) continue;
+                bool single = false;   // exactly one write already gives these bytes
+                for (size_t k = 0; k < n0 && !single; k++)
+                    single = r.writes[k].va == m.first && r.writes[k].b.size() == m.second - m.first &&
+                             std::memcmp(p, r.writes[k].b.data(), r.writes[k].b.size()) == 0;
+                if (!single) r.writes.push_back({ m.first, std::vector<uint8_t>(p, p + (m.second - m.first)), "final bytes of nearby writes" });
+            }
+        }
         std::string path = out + "/" + name + ".json";
         if (r.writes.empty()) {
             std::printf("%s: %d hext file(s), no code writes (nothing to lift)\n", arg.c_str(), r.files);

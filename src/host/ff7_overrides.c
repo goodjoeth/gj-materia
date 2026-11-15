@@ -191,3 +191,24 @@ void ff7_run_override(uint32_t va) {
     f();
     if (native && target >= SHIM_LO) g_esp += retn_of(va);   /* callee-pops original */
 }
+
+/* Code a mod's hext patch put outside the lifted code -- a "code cave" in the exe's data, which
+ * patched (lifted) code then calls or jumps to -- runs in the x86 interpreter instead of stopping
+ * the game as an unlifted target (recomp_lookup_manual, patches/pcrecomp/0022). Only the exe
+ * image outside .text: a stray pointer elsewhere still stops with its report. */
+#define FF7_IMAGE_LO 0x00400000u
+#define FF7_IMAGE_HI 0x00F6F000u
+#define FF7_TEXT_LO  0x00401000u
+#define FF7_TEXT_HI  0x007B6000u
+static __thread uint32_t g_cave_va;
+static void cave_entry(void) { ff7_interp_run(g_cave_va); }
+recomp_func_t recomp_host_lookup_extra(uint32_t va) {
+    if (va < FF7_IMAGE_LO || va >= FF7_IMAGE_HI || (va >= FF7_TEXT_LO && va < FF7_TEXT_HI)) return NULL;
+    if (recomp_lookup(va) || recomp_lookup_import(va)) return NULL;
+    static uint32_t logged[64]; static int nlogged;
+    int seen = 0;
+    for (int i = 0; i < nlogged; i++) seen |= logged[i] == va;
+    if (!seen && nlogged < 64) { logged[nlogged++] = va; fprintf(stderr, "[hext] code outside .text at 0x%08X runs interpreted\n", va); }
+    g_cave_va = va;
+    return cave_entry;
+}

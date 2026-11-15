@@ -27,6 +27,7 @@ if(NOT FF7_NO_GUEST)
 endif()
 
 set(FF7_GUEST_DEFS RECOMP_FLAT_MEMORY RECOMP_STRICT_ICALL)
+set(FF7_GUEST_OPT "-O1" CACHE STRING "Optimisation of the lifted code (-O1 keeps compile time sane)")
 option(FF7_TRACE "Lifted-function entry ring (src/host/ff7_trace.c)" OFF)
 if(FF7_TRACE)
   list(APPEND FF7_GUEST_DEFS RECOMP_TRACE)
@@ -42,7 +43,7 @@ endif()
 add_library(ff7_guest OBJECT ${FF7_GEN_SOURCES})
 target_include_directories(ff7_guest PRIVATE "${RT}/recomp32" "${GEN}")
 target_compile_definitions(ff7_guest PRIVATE ${FF7_GUEST_DEFS})
-target_compile_options(ff7_guest PRIVATE -O1 -w -fno-strict-aliasing -ffp-contract=off
+target_compile_options(ff7_guest PRIVATE ${FF7_GUEST_OPT} -w -fno-strict-aliasing -ffp-contract=off
                        -include "${HOST}/portable_guest.h")
 set_target_properties(ff7_guest PROPERTIES POSITION_INDEPENDENT_CODE ON)
 

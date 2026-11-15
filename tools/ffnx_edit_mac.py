@@ -185,6 +185,34 @@ EDITS.append(('ff7/widescreen.cpp',
     }
     // Field fix'''))
 
+# The frame limiter's sleep: macOS wakes a nanosleep late (timer coalescing), so every frame ran
+# long (57 FPS at 60). The Mac host sleeps to an absolute deadline with mach_wait_until.
+EDITS.append(('ff7/misc.cpp',
+'''		if (left_us > 500.0) std::this_thread::sleep_for(std::chrono::microseconds((long long)(left_us - 250.0)));''',
+'''#ifdef FF7_MACOS
+		extern void ff7r_sleep_us(long long us);   // FF7Recomp macOS: src/mac/ff7_mac_main.mm
+		if (left_us > 500.0) ff7r_sleep_us((long long)(left_us - 250.0));
+#else
+		if (left_us > 500.0) std::this_thread::sleep_for(std::chrono::microseconds((long long)(left_us - 250.0)));
+#endif'''))
+
+# ...and the next deadline is the last one plus a frame, not "now": a wake-up that is still a
+# little late then costs that frame only, instead of every frame running long (57 FPS at 60).
+EDITS.append(('ff7/misc.cpp',
+'''	while (gametime > last_gametime && qpc_diff_time(&gametime, &last_gametime, nullptr) < frame_time);
+#endif
+
+	last_gametime = gametime;''',
+'''	while (gametime > last_gametime && qpc_diff_time(&gametime, &last_gametime, nullptr) < frame_time);
+#endif
+
+#ifdef FF7_MACOS
+	if (gametime > last_gametime && (double)qpc_diff_time(&gametime, &last_gametime, nullptr) < 2 * frame_time)
+		last_gametime += (time_t)frame_time;   // FF7Recomp macOS: steady deadlines
+	else
+#endif
+	last_gametime = gametime;'''))
+
 
 def main():
     n = 0

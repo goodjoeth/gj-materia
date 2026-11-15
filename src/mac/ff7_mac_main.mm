@@ -17,7 +17,11 @@
 #import <QuartzCore/CAMetalLayer.h>
 #import <Metal/Metal.h>
 #import <CoreHaptics/CoreHaptics.h>
+#include <mach/mach_time.h>
 #include <atomic>
+#include <algorithm>
+#include <vector>
+#include <sys/resource.h>
 #include <chrono>
 #include <thread>
 #include <cstdio>
@@ -158,7 +162,42 @@ extern "C" void *ff7_platform_window(int *width, int *height) {
     return (__bridge void *)g_layer;
 }
 
+// The frame limiter's sleep (FFNx ff7/misc.cpp, tools/ffnx_edit_mac.py): to an absolute deadline,
+// which macOS keeps far closer than a nanosleep.
+void ff7r_sleep_us(long long us) {
+    static mach_timebase_info_data_t tb;
+    if (!tb.denom) mach_timebase_info(&tb);
+    const uint64_t ticks = (uint64_t)us * 1000ull * tb.denom / tb.numer;
+    mach_wait_until(mach_absolute_time() + ticks);
+}
+
+// FF7_PERF=1: every 10 s, frames per second, the slowest frames and the process's CPU use.
+static void perf_frame() {
+    static const bool on = getenv("FF7_PERF") != nullptr;
+    if (!on) return;
+    using clk = std::chrono::steady_clock;
+    static clk::time_point last, window;
+    static std::vector<double> ms;
+    static rusage ru0;
+    const auto now = clk::now();
+    if (last.time_since_epoch().count()) ms.push_back(std::chrono::duration<double, std::milli>(now - last).count());
+    else { window = now; getrusage(RUSAGE_SELF, &ru0); }
+    last = now;
+    const double secs = std::chrono::duration<double>(now - window).count();
+    if (secs < 10 || ms.empty()) return;
+    rusage ru; getrusage(RUSAGE_SELF, &ru);
+    auto tv = [](timeval t) { return t.tv_sec + t.tv_usec / 1e6; };
+    const double cpu = (tv(ru.ru_utime) - tv(ru0.ru_utime) + tv(ru.ru_stime) - tv(ru0.ru_stime)) / secs * 100;
+    std::vector<double> s = ms; std::sort(s.begin(), s.end());
+    const double p99 = s[(size_t)(s.size() * 0.99)], worst = s.back();
+    int over = 0; for (double m : ms) over += m > 25.0;
+    std::fprintf(stderr, "[perf] %.1f fps, frame p99 %.1f ms, worst %.1f ms, %d frame(s) over 25 ms, cpu %.0f%%\n",
+                 ms.size() / secs, p99, worst, over, cpu);
+    ms.clear(); window = now; ru0 = ru;
+}
+
 extern "C" void *ff7_platform_frame_window(void) {
+    perf_frame();
     std::lock_guard<std::mutex> lk(g_lock);
     return (__bridge void *)g_layer;
 }
@@ -348,6 +387,7 @@ extern "C" int ff7_platform_pad_buttons(void) { return g_key_buttons.load(); }
 
 @interface FF7AppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property(strong) NSWindow *window;
+@property(strong) id<NSObject> gameActivity;   // no App Nap while the game runs
 @end
 
 extern "C" void ff7_launcher_show(void);   // src/mac/launcher/Views.swift
@@ -410,7 +450,15 @@ extern "C" void ff7_overlay_attach(void *view);   // src/mac/launcher/GameOverla
     pthread_attr_t a;
     pthread_attr_init(&a);
     pthread_attr_setstacksize(&a, 64u << 20);   // the lifted game's host stack
+    // User-interactive QoS: the frame limiter's sleeps wake on time (a default-QoS thread's
+    // timers get ~2.5 ms of coalescing leeway: 52 FPS instead of 60)
+    pthread_attr_set_qos_class_np(&a, QOS_CLASS_USER_INTERACTIVE, 0);
     pthread_t t;
+    // The frame limiter sleeps to the frame's deadline: App Nap's timer coalescing (the window in
+    // the background, another app in front) made every sleep run long, 52 FPS instead of 60.
+    self.gameActivity = [[NSProcessInfo processInfo]
+        beginActivityWithOptions:NSActivityUserInitiatedAllowingIdleSystemSleep | NSActivityLatencyCritical
+                          reason:@"FINAL FANTASY VII is running"];
     pthread_create(&t, &a, game_thread, nullptr);
     pthread_detach(t);
     if (const char *ti = getenv("FF7_TEST_INPUT")) { pthread_t ti_t; pthread_create(&ti_t, nullptr, test_input_thread, (void *)ti); pthread_detach(ti_t); }
