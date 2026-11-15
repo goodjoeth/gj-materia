@@ -20,7 +20,7 @@ final class OverlayModel: ObservableObject {
     @Published var panelOpen = false
     @Published var scroll = 0
     @Published var local: [Achievement] = []
-    @Published var steam: [(name: String, display: String, got: Bool)] = []
+    @Published var steam: [SteamLink.Item] = []
     func reloadLists() {
         local = Achievements.load()
         steam = SteamLink.readState()
@@ -128,7 +128,7 @@ struct AchievementsPanel: View {
     var rows: [Row] {
         var r: [Row] = []
         for a in model.steam.sorted(by: { ($0.got ? 0 : 1, $0.display) < ($1.got ? 0 : 1, $1.display) }) {
-            r.append(Row(id: "s" + a.name, title: a.display, detail: "Steam", got: a.got, points: nil))
+            r.append(Row(id: "s" + a.name, title: a.display, detail: SteamLink.shownDesc(a), got: a.got, points: nil))
         }
         for a in model.local.sorted(by: { ($0.unlocked != nil ? 0 : 1, $0.id) < ($1.unlocked != nil ? 0 : 1, $1.id) }) {
             r.append(Row(id: "l\(a.id)", title: a.title, detail: a.description, got: a.unlocked != nil, points: a.points))
@@ -158,7 +158,7 @@ struct AchievementsPanel: View {
                         .foregroundStyle(row.got ? Color(red: 0.91, green: 0.76, blue: 0.35) : .white.opacity(0.4)).frame(width: 40 * s)
                     VStack(alignment: .leading, spacing: 2 * s) {
                         Text(row.title).font(.system(size: 28 * s, weight: .semibold))
-                        Text(row.detail).font(.system(size: 20 * s)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
+                        Text(row.detail).font(.system(size: 20 * s)).foregroundStyle(.white.opacity(0.65)).lineLimit(2)
                     }
                     Spacer()
                     if let p = row.points { Text("\(p)").font(.system(size: 24 * s).monospacedDigit()).foregroundStyle(.white.opacity(0.7)) }

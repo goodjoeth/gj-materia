@@ -56,6 +56,7 @@ struct AchievementsView: View {
 
 struct SteamView: View {
     @ObservedObject var steam: SteamLink
+    @State private var revealHidden = false
     var body: some View {
         List {
             Section {
@@ -99,12 +100,19 @@ struct SteamView: View {
             }
             if !steam.achievements.isEmpty {
                 Section("Achievement บน Steam") {
-                    ForEach(steam.achievements, id: \.name) { a in
-                        HStack {
+                    ForEach(steam.achievements) { a in
+                        HStack(alignment: .top) {
                             Image(systemName: a.got ? "trophy.fill" : "lock.fill").foregroundStyle(a.got ? .yellow : .secondary).frame(width: 24)
-                            Text(a.display)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(a.display)
+                                let d = SteamLink.shownDesc(a, reveal: revealHidden)
+                                if !d.isEmpty { Text(d).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                            }
                         }
                         .opacity(a.got ? 1 : 0.6)
+                    }
+                    if steam.achievements.contains(where: { $0.hidden && !$0.got }) {
+                        Toggle("แสดงรายละเอียดของ achievement ลับ (สปอยล์)", isOn: $revealHidden)
                     }
                 }
             }

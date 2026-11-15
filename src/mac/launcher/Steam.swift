@@ -324,17 +324,22 @@ final class SteamConnection: NSObject, @unchecked Sendable {
 final class SteamLink: ObservableObject {
     static let appRerelease: UInt32 = 3837340, app2013: UInt32 = 39140
     struct Info: Codable { var account = ""; var appid: UInt32 = 0 }
-    struct Ach { let name: String; let stat: UInt32; let bit: Int; let display: String }
+    struct Ach { let name: String; let stat: UInt32; let bit: Int; let display: String; var desc = ""; var hidden = false }
+    /// One achievement as the views show it.
+    struct Item: Identifiable { let name: String; let display: String; let desc: String; let hidden: Bool; let got: Bool; var id: String { name } }
 
     @Published var info = Info()
     @Published var qrURL: String?
     @Published var status: String?
     @Published var busy = false
-    @Published var achievements: [(name: String, display: String, got: Bool)] = []
+    @Published var achievements: [Item] = []
     private var signInTask: Task<Void, Never>?
 
     nonisolated static var dir: URL { Paths.base.appendingPathComponent("steam") }
     nonisolated static var state: URL { dir.appendingPathComponent("state.txt") }
+    /// What each achievement asks for: "name<TAB>hidden<TAB>description" (state.txt stays as
+    /// src/ffnx_port/steam_android.cpp reads it).
+    nonisolated static var descs: URL { dir.appendingPathComponent("descriptions.txt") }
     nonisolated static var pending: URL { dir.appendingPathComponent("pending.txt") }
     nonisolated static var sending: URL { dir.appendingPathComponent("pending.sending") }
     static var infoURL: URL { dir.appendingPathComponent("account.json") }
@@ -358,13 +363,25 @@ final class SteamLink: ObservableObject {
 
     /// steam/state.txt: every FF7 achievement and whether this account has it (plus the ones the
     /// game unlocked that are still waiting to be sent).
-    nonisolated static func readState() -> [(name: String, display: String, got: Bool)] {
+    nonisolated static func readState() -> [Item] {
         let waiting = Set((lines(pending) + lines(sending)).compactMap { $0.split(separator: "\t").first.map(String.init) })
+        var d: [String: (Bool, String)] = [:]
+        for l in lines(descs) {
+            let f = l.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
+            if f.count == 3 { d[f[0]] = (f[1] == "1", f[2]) }
+        }
         return lines(state).compactMap { l in
             let f = l.split(separator: " ", maxSplits: 3).map(String.init)
             guard f.count >= 3, f[0] == "ach" else { return nil }
-            return (f[1], f.count > 3 ? f[3] : f[1], f[2] == "1" || waiting.contains(f[1]))
+            return Item(name: f[1], display: f.count > 3 ? f[3] : f[1], desc: d[f[1]]?.1 ?? "", hidden: d[f[1]]?.0 ?? false,
+                        got: f[2] == "1" || waiting.contains(f[1]))
         }
+    }
+
+    /// The description to show: a hidden achievement's stays hidden until it is unlocked (as on Steam).
+    nonisolated static func shownDesc(_ a: Item, reveal: Bool = false) -> String {
+        if a.hidden && !a.got && !reveal { return "Achievement ลับ: จะเห็นรายละเอียดเมื่อปลดล็อก" }
+        return a.desc
     }
 
     nonisolated static func lines(_ u: URL) -> [String] {
@@ -534,6 +551,11 @@ final class SteamLink: ObservableObject {
             s += "ach \(a.name) \((values[a.stat] ?? 0) >> a.bit & 1) \(a.display.replacingOccurrences(of: "\n", with: " "))\n"
         }
         try s.write(to: Self.state, atomically: true, encoding: .utf8)
+        var ds = ""
+        for a in schema.values.sorted(by: { ($0.stat, $0.bit) < ($1.stat, $1.bit) }) {
+            ds += "\(a.name)\t\(a.hidden ? 1 : 0)\t\(a.desc.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\t", with: " "))\n"
+        }
+        try? ds.write(to: Self.descs, atomically: true, encoding: .utf8)
         try? Paths.fm.removeItem(at: Self.sending)
         loadState()
         return newly
@@ -553,12 +575,16 @@ final class SteamLink: ObservableObject {
             guard let bits = stat.child("bits"), let statID = UInt32(stat.name) else { continue }
             for b in bits.children {
                 guard let bit = Int(b.name), let name = b.child("name")?.value else { continue }
-                var display = name
-                if let d = b.child("display")?.child("name") {
-                    if let v = d.value, !v.isEmpty { display = v }
-                    if let en = d.child("english")?.value { display = en }
+                func text(_ k: String) -> String? {
+                    guard let d = b.child("display")?.child(k) else { return nil }
+                    if let en = d.child("english")?.value, !en.isEmpty { return en }
+                    if let v = d.value, !v.isEmpty { return v }
+                    return d.children.first?.value
                 }
-                out[name] = Ach(name: name, stat: statID, bit: bit, display: display)
+                var a = Ach(name: name, stat: statID, bit: bit, display: text("name") ?? name)
+                a.desc = text("desc") ?? ""
+                a.hidden = (b.child("display")?.child("hidden")?.value ?? "0") != "0"
+                out[name] = a
             }
         }
         return out
