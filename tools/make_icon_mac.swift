@@ -173,15 +173,15 @@ for k in 0..<3 {
     ctx.addPath(rr(-132, -44 + CGFloat(k) * 34, 124, 18, 9)); ctx.setFillColor(rgb(0.08, 0.08, 0.1, 0.55)); ctx.fillPath()
 }
 ctx.addPath(cyl); ctx.setStrokeColor(goldLine); ctx.setLineWidth(7); ctx.strokePath()
-// Good JOE's logo on the grip (macos/icon/goodjoe-logo.png, next to this script's output),
+// Good JOE's GJ (macos/icon/gj-logo.png: the G and J cut from his logo) on the grip,
 // running along it, inside the grip's outline
-let logoURL = URL(fileURLWithPath: CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "macos/icon/goodjoe-logo.png")
+let logoURL = URL(fileURLWithPath: CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "macos/icon/gj-logo.png")
 if let src = CGImageSourceCreateWithURL(logoURL as CFURL, nil), let logo = CGImageSourceCreateImageAtIndex(src, 0, nil) {
     ctx.saveGState()
     ctx.addPath(grip); ctx.clip()
     ctx.translateBy(x: -262, y: -120)
     ctx.rotate(by: -0.38)                          // upright on the icon (the revolver is turned 0.38)
-    let lw: CGFloat = 92, lh = lw * CGFloat(logo.height) / CGFloat(logo.width)
+    let lw: CGFloat = 84, lh = lw * CGFloat(logo.height) / CGFloat(logo.width)
     ctx.setShadow(offset: CGSize(width: 0, height: -2), blur: 4, color: rgb(0, 0, 0, 0.9))
     ctx.draw(logo, in: CGRect(x: -lw / 2, y: -lh / 2, width: lw, height: lh))
     ctx.restoreGState()
