@@ -53,20 +53,20 @@ final class GameFiles: ObservableObject {
 
     /// Import from the FF7 install folder (the one with ff7/ inside), or ff7/ itself.
     func importGame(from picked: URL) async {
-        busy = "กำลังตรวจไฟล์เกม…"; message = nil; progress = 0
+        busy = L("กำลังตรวจไฟล์เกม…", "Checking the game files…"); message = nil; progress = 0
         defer { busy = nil }
         let fm = Paths.fm
         let roots = [picked, picked.appendingPathComponent("FINAL FANTASY VII Steam Edition"), picked.deletingLastPathComponent()]
         guard let root = roots.first(where: { fm.fileExists(atPath: $0.appendingPathComponent("ff7/resources/ff7_1.02/ff7_en").path) }) else {
-            message = "ไม่พบไฟล์เกมในโฟลเดอร์นี้ ให้เลือกโฟลเดอร์ “FINAL FANTASY VII Steam Edition” (ที่มีโฟลเดอร์ ff7 อยู่ข้างใน)"; return
+            message = L("ไม่พบไฟล์เกมในโฟลเดอร์นี้ ให้เลือกโฟลเดอร์ “FINAL FANTASY VII Steam Edition” (ที่มีโฟลเดอร์ ff7 อยู่ข้างใน)", "No game files in this folder. Choose the “FINAL FANTASY VII Steam Edition” folder (the one with the ff7 folder inside)."); return
         }
         let exe = root.appendingPathComponent("ff7/resources/ff7_1.02/ff7_en")
         let data = root.appendingPathComponent("ff7/workingdir/data")
-        guard let exeData = try? Data(contentsOf: exe) else { message = "อ่าน ff7_en ไม่ได้"; return }
+        guard let exeData = try? Data(contentsOf: exe) else { message = L("อ่าน ff7_en ไม่ได้", "Can't read ff7_en"); return }
         if let want = Self.expectedSHA1, Self.sha1(exeData) != want {
-            message = "ไฟล์เกมนี้ต่างจากที่แอปนี้ถูก build มา (ต้อง build แอปใหม่จากโฟลเดอร์นี้ด้วย tools/build_mac.sh)"; return
+            message = L("ไฟล์เกมนี้ต่างจากที่แอปนี้ถูก build มา (ต้อง build แอปใหม่จากโฟลเดอร์นี้ด้วย tools/build_mac.sh)", "These game files differ from the ones this app was built from (rebuild the app from this folder with tools/build_mac.sh)"); return
         }
-        busy = "กำลังก๊อปไฟล์เกม…"
+        busy = L("กำลังก๊อปไฟล์เกม…", "Copying the game files…")
         let ok = await Task.detached { () -> String? in
             do {
                 try fm.createDirectory(at: Paths.game, withIntermediateDirectories: true)
@@ -99,9 +99,9 @@ final class GameFiles: ObservableObject {
                 return nil
             } catch { return error.localizedDescription }
         }.value
-        if let e = ok { message = "นำเข้าไม่สำเร็จ: \(e)"; return }
+        if let e = ok { message = L("นำเข้าไม่สำเร็จ: \(e)", "Import failed: \(e)"); return }
         Self.installRuntime()
-        message = "นำเข้าไฟล์เกมแล้ว (เก็บไว้ในเครื่องนี้ ไม่ขึ้นกับโฟลเดอร์ต้นทางแล้ว)"
+        message = L("นำเข้าไฟล์เกมแล้ว (เก็บไว้ในเครื่องนี้ ไม่ขึ้นกับโฟลเดอร์ต้นทางแล้ว)", "The game files are imported (kept on this Mac, no longer tied to the source folder)")
         objectWillChange.send()
     }
 
@@ -172,7 +172,7 @@ final class GameFiles: ObservableObject {
                 return Found(url: r, matches: want == nil || d == nil ? nil : Self.sha1(d!) == want)
             }
         }.value
-        if found.isEmpty { message = "ไม่พบ FINAL FANTASY VII ในเครื่องนี้ ดู “วิธีได้ไฟล์เกม” ด้านล่าง" }
+        if found.isEmpty { message = L("ไม่พบ FINAL FANTASY VII ในเครื่องนี้ ดู “วิธีได้ไฟล์เกม” ด้านล่าง", "FINAL FANTASY VII wasn't found on this Mac. See “How to get the game files” below.") }
     }
 
     #if os(macOS)
@@ -181,9 +181,9 @@ final class GameFiles: ObservableObject {
     func reliftMods() {
         guard busy == nil, let tree = Self.sourceTree,
               Paths.fm.fileExists(atPath: tree.appendingPathComponent("tools/relift_mods_mac.sh").path) else {
-            message = "ไม่พบโฟลเดอร์ซอร์สที่ใช้ build แอปนี้"; return
+            message = L("ไม่พบโฟลเดอร์ซอร์สที่ใช้ build แอปนี้", "Can't find the source folder this app was built from"); return
         }
-        busy = "กำลัง lift โค้ดของม็อด (ประมาณ 5–10 นาที)…"; log = []; message = nil
+        busy = L("กำลัง lift โค้ดของม็อด (ประมาณ 5–10 นาที)…", "Lifting the mods' code (about 5–10 minutes)…"); log = []; message = nil
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
         p.arguments = ["-lc", "bash \"\(tree.path)/tools/relift_mods_mac.sh\" \"\(Paths.profile.path)\" 2>&1"]
@@ -198,7 +198,7 @@ final class GameFiles: ObservableObject {
             Task { @MainActor in
                 pipe.fileHandleForReading.readabilityHandler = nil
                 self.busy = nil
-                self.message = pr.terminationStatus == 0 ? "เสร็จแล้ว ปิดแล้วเปิดแอปใหม่เพื่อใช้โค้ดที่ lift ใหม่" : "lift ไม่สำเร็จ (ดูรายละเอียดด้านล่าง)"
+                self.message = pr.terminationStatus == 0 ? L("เสร็จแล้ว ปิดแล้วเปิดแอปใหม่เพื่อใช้โค้ดที่ lift ใหม่", "Done. Quit and reopen the app to use the newly lifted code.") : L("lift ไม่สำเร็จ (ดูรายละเอียดด้านล่าง)", "The lift failed (details below)")
             }
         }
         do { try p.run() } catch { busy = nil; message = error.localizedDescription }

@@ -36,7 +36,7 @@ final class CloudSaves: ObservableObject {
     // MARK: on / off
 
     func enable() {
-        guard Self.available else { status = "iCloud Drive ไม่ได้เปิดอยู่ (การตั้งค่าระบบ → Apple ID → iCloud → iCloud Drive)"; return }
+        guard Self.available else { status = L("iCloud Drive ไม่ได้เปิดอยู่ (การตั้งค่าระบบ → Apple ID → iCloud → iCloud Drive)", "iCloud Drive is off (System Settings → Apple ID → iCloud → iCloud Drive)"); return }
         busy = true; defer { busy = false }
         let fm = Paths.fm
         var merged = 0, kept = 0
@@ -72,9 +72,10 @@ final class CloudSaves: ObservableObject {
                 }
                 try fm.createSymbolicLink(at: local, withDestinationURL: cloud)
             }
-            status = "เซฟอยู่ใน iCloud Drive แล้ว (\(merged) ไฟล์" + (kept > 0 ? ", \(kept) ไฟล์ที่มีทั้งสองที่: ใช้อันที่ใหม่กว่า อีกอันเก็บไว้ใน save-backups" : "") + ")"
+            let both = kept > 0 ? L(", \(kept) ไฟล์ที่มีทั้งสองที่: ใช้อันที่ใหม่กว่า อีกอันเก็บไว้ใน save-backups", ", \(kept) on both: the newer one is used, the other kept in save-backups") : ""
+            status = L("เซฟอยู่ใน iCloud Drive แล้ว (\(merged) ไฟล์", "The saves are in iCloud Drive (\(merged) files") + both + ")"
         } catch {
-            status = "ย้ายไป iCloud ไม่สำเร็จ: \(error.localizedDescription)"
+            status = L("ย้ายไป iCloud ไม่สำเร็จ: \(error.localizedDescription)", "Could not move them to iCloud: \(error.localizedDescription)")
         }
         objectWillChange.send()
     }
@@ -88,9 +89,9 @@ final class CloudSaves: ObservableObject {
                 try fm.removeItem(at: local)                       // the link
                 try fm.copyItem(at: cloud, to: local)              // iCloud Drive keeps its copy
             }
-            status = "เซฟกลับมาอยู่ในเครื่องนี้แล้ว (สำเนาใน iCloud Drive ยังอยู่)"
+            status = L("เซฟกลับมาอยู่ในเครื่องนี้แล้ว (สำเนาใน iCloud Drive ยังอยู่)", "The saves are back on this Mac (the copy in iCloud Drive stays)")
         } catch {
-            status = "ย้ายกลับไม่สำเร็จ: \(error.localizedDescription)"
+            status = L("ย้ายกลับไม่สำเร็จ: \(error.localizedDescription)", "Could not move them back: \(error.localizedDescription)")
         }
         objectWillChange.send()
     }

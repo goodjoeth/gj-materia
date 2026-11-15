@@ -78,7 +78,7 @@ enum FF7Save {
         let d = [UInt8](try Data(contentsOf: src))
         if isPC(d) {
             let n = (0..<15).filter { used(d, $0) }.count
-            if n == 0 { throw SaveError(message: "ไฟล์เซฟนี้ว่างเปล่า") }
+            if n == 0 { throw SaveError(message: L("ไฟล์เซฟนี้ว่างเปล่า", "This save file is empty")) }
             return (try writeFree(d), n)
         }
         var pc = [UInt8](repeating: 0, count: pcSize)
@@ -99,9 +99,9 @@ enum FF7Save {
         } else if d.count == 0x2000, d[0] == 0x53, d[1] == 0x43 {   // one exported block ("SC")
             put(&pc, 0, d, 0x200); count = 1
         } else {
-            throw SaveError(message: "ไฟล์นี้ไม่ใช่เซฟ FF7 PC (saveNN.ff7) หรือ memory card ของ PlayStation")
+            throw SaveError(message: L("ไฟล์นี้ไม่ใช่เซฟ FF7 PC (saveNN.ff7) หรือ memory card ของ PlayStation", "This isn't an FF7 PC save (saveNN.ff7) or a PlayStation memory card"))
         }
-        if count == 0 { throw SaveError(message: "ไม่พบเซฟ FINAL FANTASY VII ใน memory card นี้") }
+        if count == 0 { throw SaveError(message: L("ไม่พบเซฟ FINAL FANTASY VII ใน memory card นี้", "No FINAL FANTASY VII saves on this memory card")) }
         var u5 = 0, u6 = 0
         for s in 0..<15 where used(pc, s) { if s < 8 { u5 |= 1 << s } else { u6 |= 1 << (s - 8) } }
         pc[5] = UInt8(u5); pc[6] = UInt8(u6)
@@ -129,7 +129,7 @@ enum FF7Save {
             try Data(pc).write(to: url(n))
             return n + 1
         }
-        throw SaveError(message: "ช่องเซฟทั้ง \(files) ไฟล์ (Save 1-10) เต็มแล้ว ลบไฟล์ใดไฟล์หนึ่งก่อน")
+        throw SaveError(message: L("ช่องเซฟทั้ง \(files) ไฟล์ (Save 1-10) เต็มแล้ว ลบไฟล์ใดไฟล์หนึ่งก่อน", "All \(files) save files (Save 1-10) are full; delete one first"))
     }
 
     // MARK: export
@@ -138,7 +138,7 @@ enum FF7Save {
     /// file's saves as the US release's blocks (BASCUS-94163FF7-Snn).
     static func memoryCard(from pcFile: URL) throws -> Data {
         let pc = [UInt8](try Data(contentsOf: pcFile))
-        guard isPC(pc) else { throw SaveError(message: "ไฟล์เซฟเสีย") }
+        guard isPC(pc) else { throw SaveError(message: L("ไฟล์เซฟเสีย", "The save file is damaged")) }
         var card = [UInt8](repeating: 0, count: 0x20000)
         card[0] = 0x4D; card[1] = 0x43; card[0x7F] = 0x0E                 // "MC" header frame (xor checksum)
         for i in 1..<16 {                                                  // free directory frames
@@ -164,7 +164,7 @@ enum FF7Save {
             card.replaceSubrange((b + 0x200)..<(b + 0x200 + slot), with: pc[src..<(src + slot)])
             block += 1
         }
-        if block == 1 { throw SaveError(message: "ไฟล์เซฟนี้ว่างเปล่า") }
+        if block == 1 { throw SaveError(message: L("ไฟล์เซฟนี้ว่างเปล่า", "This save file is empty")) }
         return Data(card)
     }
 
@@ -227,7 +227,7 @@ enum SaveStates {
         let h = try FileHandle(forReadingFrom: src)
         let b = [UInt8](h.readData(ofLength: 8)); try? h.close()
         guard b.count == 8, b[0] == 0x46, b[1] == 0x46, b[2] == 0x37 else {
-            throw SaveError(message: "ไฟล์นี้ไม่ใช่ save state ของ GJ Materia / FF7Recomp (.ff7s) — save state ของ DuckStation/RetroArch ใช้กับเวอร์ชัน PC ไม่ได้")
+            throw SaveError(message: L("ไฟล์นี้ไม่ใช่ save state ของ GJ Materia / FF7Recomp (.ff7s) — save state ของ DuckStation/RetroArch ใช้กับเวอร์ชัน PC ไม่ได้", "This isn't a GJ Materia / FF7Recomp save state (.ff7s). DuckStation/RetroArch save states don't work with the PC version."))
         }
         try Paths.fm.createDirectory(at: Paths.savestates, withIntermediateDirectories: true)
         try? Paths.fm.removeItem(at: url(n))

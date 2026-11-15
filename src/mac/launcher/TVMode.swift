@@ -58,20 +58,20 @@ struct TVModeView: View {
 
     var rows: [Row] {
         var r: [Row] = [
-            .play("เล่นต่อจากเซฟล่าสุด", "continue", "play.fill"),
-            .play("เกมใหม่", "newgame", "sparkles"),
-            .play("หน้าไตเติล", "title", "house"),
-            .setting("อัตราส่วนจอ", { ["4:3", "ยืด", "16:9", "16:10", "21:9"][min(4, state.settings.aspect)] },
+            .play(L("เล่นต่อจากเซฟล่าสุด", "Continue from the last save"), "continue", "play.fill"),
+            .play(L("เกมใหม่", "New game"), "newgame", "sparkles"),
+            .play(L("หน้าไตเติล", "Title screen"), "title", "house"),
+            .setting(L("อัตราส่วนจอ", "Aspect ratio"), { ["4:3", L("ยืด", "Stretch"), "16:9", "16:10", "21:9"][min(4, state.settings.aspect)] },
                      { d in state.settings.aspect = [0, 2, 3, 4, 1][((([0, 2, 3, 4, 1].firstIndex(of: state.settings.aspect) ?? 0) + d) % 5 + 5) % 5] }),
-            .setting("Frame rate", { ["ต้นฉบับ", "ต้นฉบับ (แก้จังหวะ)", "ต่อสู้ 30", "60 FPS", "120 FPS"][state.settings.fps] },
+            .setting("Frame rate", { [L("ต้นฉบับ", "Original"), L("ต้นฉบับ (แก้จังหวะ)", "Original (fixed timing)"), L("ต่อสู้ 30", "Battles 30"), "60 FPS", "120 FPS"][state.settings.fps] },
                      { d in state.settings.fps = ((state.settings.fps + d) % 5 + 5) % 5 }),
-            .setting("เต็มจอ", { state.settings.fullscreen ? "เปิด" : "ปิด" }, { _ in state.settings.fullscreen.toggle() }),
-            .setting("การสั่นของจอย", { ["ปิด", "เบา", "แรง"][state.settings.rumble] }, { d in state.settings.rumble = ((state.settings.rumble + d) % 3 + 3) % 3 }),
+            .setting(L("เต็มจอ", "Full screen"), { state.settings.fullscreen ? L("เปิด", "Open") : L("ปิด", "Off") }, { _ in state.settings.fullscreen.toggle() }),
+            .setting(L("การสั่นของจอย", "Controller rumble"), { [L("ปิด", "Off"), L("เบา", "Light"), L("แรง", "Strong")][state.settings.rumble] }, { d in state.settings.rumble = ((state.settings.rumble + d) % 3 + 3) % 3 }),
         ]
         #if os(macOS)
         let screens = [""] + NSScreen.screens.dropFirst().map { $0.localizedName }
         if screens.count > 1 {
-            r.append(.setting("จอที่ใช้เล่น", { state.settings.display.isEmpty ? "จอหลัก" : state.settings.display }, { d in
+            r.append(.setting(L("จอที่ใช้เล่น", "Display"), { state.settings.display.isEmpty ? L("จอหลัก", "Main display") : state.settings.display }, { d in
                 let i = screens.firstIndex(of: state.settings.display) ?? 0
                 state.settings.display = screens[((i + d) % screens.count + screens.count) % screens.count]
             }))
@@ -90,15 +90,15 @@ struct TVModeView: View {
                 HStack {
                     Text("FINAL FANTASY VII").font(.system(size: 44, weight: .bold, design: .serif)).foregroundStyle(.white)
                     Spacer()
-                    Text("Ⓐ เลือก   Ⓑ ออก   ◀▶ เปลี่ยนค่า   START เล่นต่อ").font(.title3).foregroundStyle(.white.opacity(0.6))
+                    Text(L("Ⓐ เลือก   Ⓑ ออก   ◀▶ เปลี่ยนค่า   START เล่นต่อ", "Ⓐ select   Ⓑ back   ◀▶ change   START resume")).font(.title3).foregroundStyle(.white.opacity(0.6))
                 }
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(Array(list.enumerated()), id: \.offset) { i, row in
                                 tile(row, focused: i == focus).id(i)
-                                if i == 2 { section("ตั้งค่า") }
-                                if case .setting = row, i + 1 < list.count, case .mod = list[i + 1] { section("ม็อด") }
+                                if i == 2 { section(L("ตั้งค่า", "Settings")) }
+                                if case .setting = row, i + 1 < list.count, case .mod = list[i + 1] { section(L("ม็อด", "Mods")) }
                             }
                         }
                         .padding(.vertical, 8)
@@ -128,7 +128,7 @@ struct TVModeView: View {
                 Text(m.title).font(.title2); Spacer()
                 Text(m.info?.category ?? "").foregroundStyle(.white.opacity(0.5))
             case .leave:
-                Image(systemName: "xmark.circle"); Text("ออกจากโหมดทีวี").font(.title2); Spacer()
+                Image(systemName: "xmark.circle"); Text(L("ออกจากโหมดทีวี", "Leave TV mode")).font(.title2); Spacer()
             }
         }
         .foregroundStyle(.white)

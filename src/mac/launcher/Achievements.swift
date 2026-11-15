@@ -45,7 +45,7 @@ struct AchievementsView: View {
         VStack(spacing: 0) {
             Picker("", selection: $tab) {
                 Text("Steam").tag(0)
-                Text("ชุดออฟไลน์ (RetroAchievements)").tag(1)
+                Text(L("ชุดออฟไลน์ (RetroAchievements)", "Offline set (RetroAchievements)")).tag(1)
             }
             .pickerStyle(.segmented).labelsHidden().frame(width: 420).padding(10)
             if tab == 0 { SteamView(steam: steam) } else { LocalAchievementsView() }
@@ -61,17 +61,17 @@ struct SteamView: View {
         List {
             Section {
                 if steam.signedIn {
-                    LabeledContent("บัญชี", value: steam.info.account)
-                    LabeledContent("เกม", value: steam.info.appid == SteamLink.app2013 ? "FINAL FANTASY VII (2013)" : steam.info.appid == 0 ? "ยังไม่ทราบ" : "FINAL FANTASY VII (2026)")
+                    LabeledContent(L("บัญชี", "Account"), value: steam.info.account)
+                    LabeledContent(L("เกม", "Game"), value: steam.info.appid == SteamLink.app2013 ? "FINAL FANTASY VII (2013)" : steam.info.appid == 0 ? L("ยังไม่ทราบ", "Unknown") : "FINAL FANTASY VII (2026)")
                     if !steam.achievements.isEmpty {
-                        LabeledContent("ปลดล็อกบน Steam", value: "\(steam.achievements.filter { $0.got }.count) / \(steam.achievements.count)")
+                        LabeledContent(L("ปลดล็อกบน Steam", "Unlocked on Steam"), value: "\(steam.achievements.filter { $0.got }.count) / \(steam.achievements.count)")
                     }
-                    if steam.waiting > 0 { LabeledContent("รอส่งขึ้น Steam", value: "\(steam.waiting)") }
+                    if steam.waiting > 0 { LabeledContent(L("รอส่งขึ้น Steam", "Waiting to be sent to Steam"), value: "\(steam.waiting)") }
                     HStack {
-                        Button { Task { await steam.sync() } } label: { Label("Sync ตอนนี้", systemImage: "arrow.triangle.2.circlepath") }
+                        Button { Task { await steam.sync() } } label: { Label(L("Sync ตอนนี้", "Sync now"), systemImage: "arrow.triangle.2.circlepath") }
                             .disabled(steam.busy)
                         Spacer()
-                        Button("ออกจากระบบ", role: .destructive) { steam.signOut() }.disabled(steam.busy)
+                        Button(L("ออกจากระบบ", "Sign out"), role: .destructive) { steam.signOut() }.disabled(steam.busy)
                     }
                 } else if let u = steam.qrURL {
                     HStack(alignment: .top, spacing: 20) {
@@ -80,26 +80,26 @@ struct SteamView: View {
                                 .padding(8).background(Color.white).clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("สแกนด้วยแอป Steam บนมือถือ").font(.headline)
-                            Text("เปิดแอป Steam → ไอคอน Steam Guard (โล่) → สแกน QR code แล้วกดอนุมัติ\nไม่ต้องพิมพ์รหัสผ่านในแอปนี้")
+                            Text(L("สแกนด้วยแอป Steam บนมือถือ", "Scan with the Steam app on your phone")).font(.headline)
+                            Text(L("เปิดแอป Steam → ไอคอน Steam Guard (โล่) → สแกน QR code แล้วกดอนุมัติ\nไม่ต้องพิมพ์รหัสผ่านในแอปนี้", "Open the Steam app → the Steam Guard (shield) icon → scan the QR code and approve\nYou never type your password in this app"))
                                 .foregroundStyle(.secondary)
-                            Button("ยกเลิก") { steam.cancelSignIn() }
+                            Button(L("ยกเลิก", "Cancel")) { steam.cancelSignIn() }
                         }
                     }
                     .padding(.vertical, 6)
                 } else {
-                    Text("ลงชื่อเข้าใช้ Steam เพื่อให้ achievement ที่ได้ในเกมขึ้นบนบัญชี Steam ของคุณ (ต้องเป็นบัญชีที่มี FINAL FANTASY VII)")
-                    Button { steam.signIn() } label: { Label("ลงชื่อเข้าใช้ด้วย QR code", systemImage: "qrcode") }
+                    Text(L("ลงชื่อเข้าใช้ Steam เพื่อให้ achievement ที่ได้ในเกมขึ้นบนบัญชี Steam ของคุณ (ต้องเป็นบัญชีที่มี FINAL FANTASY VII)", "Sign in to Steam so the achievements you earn in the game show on your Steam account (it must own FINAL FANTASY VII)"))
+                    Button { steam.signIn() } label: { Label(L("ลงชื่อเข้าใช้ด้วย QR code", "Sign in with a QR code"), systemImage: "qrcode") }
                         .disabled(steam.busy)
                 }
                 if steam.busy && steam.qrURL == nil { ProgressView().controlSize(.small) }
                 if let s = steam.status { Text(s).font(.callout).foregroundStyle(.secondary) }
             } header: { Text("Steam") } footer: {
-                Text("FFNx เป็นตัวตัดสินว่าได้ achievement เมื่อไร แล้ว launcher ส่งขึ้น Steam (ระหว่างเล่นทุก 1 นาที และตอนเปิด launcher) token ของ Steam เก็บเป็นไฟล์ที่อ่านได้เฉพาะบัญชีผู้ใช้นี้")
+                Text(L("FFNx เป็นตัวตัดสินว่าได้ achievement เมื่อไร แล้ว launcher ส่งขึ้น Steam (ระหว่างเล่นทุก 1 นาที และตอนเปิด launcher) token ของ Steam เก็บเป็นไฟล์ที่อ่านได้เฉพาะบัญชีผู้ใช้นี้", "FFNx decides when an achievement is earned, and the launcher sends it to Steam (every minute while playing, and when the launcher opens). The Steam token is kept in a file only this user account can read."))
                     .font(.caption)
             }
             if !steam.achievements.isEmpty {
-                Section("Achievement บน Steam") {
+                Section(L("Achievement บน Steam", "Achievements on Steam")) {
                     ForEach(steam.achievements) { a in
                         HStack(alignment: .top) {
                             Image(systemName: a.got ? "trophy.fill" : "lock.fill").foregroundStyle(a.got ? .yellow : .secondary).frame(width: 24)
@@ -112,7 +112,7 @@ struct SteamView: View {
                         .opacity(a.got ? 1 : 0.6)
                     }
                     if steam.achievements.contains(where: { $0.hidden && !$0.got }) {
-                        Toggle("แสดงรายละเอียดของ achievement ลับ (สปอยล์)", isOn: $revealHidden)
+                        Toggle(L("แสดงรายละเอียดของ achievement ลับ (สปอยล์)", "Show hidden achievements' details (spoilers)"), isOn: $revealHidden)
                     }
                 }
             }
@@ -127,13 +127,13 @@ struct LocalAchievementsView: View {
         List {
             Section {
                 HStack {
-                    Text("ปลดล็อกแล้ว \(got.count) / \(list.count)").font(.headline)
+                    Text(L("ปลดล็อกแล้ว \(got.count) / \(list.count)", "Unlocked \(got.count) / \(list.count)")).font(.headline)
                     Spacer()
-                    Text("\(got.reduce(0) { $0 + $1.points }) / \(list.reduce(0) { $0 + $1.points }) แต้ม").foregroundStyle(.secondary)
+                    Text(L("\(got.reduce(0) { $0 + $1.points }) / \(list.reduce(0) { $0 + $1.points }) แต้ม", "\(got.reduce(0) { $0 + $1.points }) / \(list.reduce(0) { $0 + $1.points }) points")).foregroundStyle(.secondary)
                 }
                 ProgressView(value: Double(got.count), total: Double(max(list.count, 1)))
             } footer: {
-                Text("ชุด achievement แบบออฟไลน์ (รูปแบบเดียวกับ RetroAchievements) ตรวจในเครื่องระหว่างเล่น ยังไม่ส่งขึ้นบัญชี RetroAchievements เพราะ RA ยังไม่อนุมัติโปรแกรมนี้ ถ้ายังไม่มีรายการ ให้เข้าเกมหนึ่งครั้ง")
+                Text(L("ชุด achievement แบบออฟไลน์ (รูปแบบเดียวกับ RetroAchievements) ตรวจในเครื่องระหว่างเล่น ยังไม่ส่งขึ้นบัญชี RetroAchievements เพราะ RA ยังไม่อนุมัติโปรแกรมนี้ ถ้ายังไม่มีรายการ ให้เข้าเกมหนึ่งครั้ง", "The offline achievement set (RetroAchievements' format), checked on this Mac while you play. Not sent to a RetroAchievements account yet: RA has not approved this program. If the list is empty, start the game once."))
                     .font(.caption)
             }
             ForEach(list.sorted { ($0.unlocked != nil ? 0 : 1, $0.id) < ($1.unlocked != nil ? 0 : 1, $1.id) }) { a in

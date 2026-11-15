@@ -649,10 +649,16 @@ extern "C" void ff7_overlay_attach(void *view);   // src/mac/launcher/GameOverla
     ps.alignment = NSTextAlignmentCenter;
     NSDictionary *a = @{ NSFontAttributeName: [NSFont systemFontOfSize:11], NSParagraphStyleAttributeName: ps,
                          NSForegroundColorAttributeName: NSColor.secondaryLabelColor };
-    NSString *t = @"สร้างโดย Good JOE — github.com/goodjoeth\n\n"
-                  "FINAL FANTASY VII (เวอร์ชัน Steam) บน Mac แบบ native\n"
-                  "ต้องใช้ไฟล์เกมของคุณเอง ไม่เกี่ยวข้องกับ Square Enix\n\n"
-                  "สร้างบน FF7Recomp, FFNx, pcrecomp, bgfx, 7th Heaven และม็อดของชุมชน Qhimm / Tsunamods (GPL v3)";
+    const bool thai = [[[NSUserDefaults standardUserDefaults] stringForKey:@"uiLanguage"] isEqualToString:@"th"];
+    NSString *t = thai
+        ? @"สร้างโดย Good JOE — github.com/goodjoeth\n\n"
+           "FINAL FANTASY VII (เวอร์ชัน Steam) บน Mac แบบ native\n"
+           "ต้องใช้ไฟล์เกมของคุณเอง ไม่เกี่ยวข้องกับ Square Enix\n\n"
+           "สร้างบน FF7Recomp, FFNx, pcrecomp, bgfx, 7th Heaven และม็อดของชุมชน Qhimm / Tsunamods (GPL v3)"
+        : @"Made by Good JOE — github.com/goodjoeth\n\n"
+           "FINAL FANTASY VII (the Steam release), native on the Mac\n"
+           "Needs your own game files. Not affiliated with Square Enix.\n\n"
+           "Built on FF7Recomp, FFNx, pcrecomp, bgfx, 7th Heaven and the Qhimm / Tsunamods mods (GPL v3)";
     [NSApp orderFrontStandardAboutPanelWithOptions:@{
         NSAboutPanelOptionApplicationName: @"GJ Materia",
         NSAboutPanelOptionCredits: [[NSAttributedString alloc] initWithString:t attributes:a] }];

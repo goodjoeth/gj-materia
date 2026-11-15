@@ -102,7 +102,7 @@ struct BoosterIcons: View {
     let battlePlus: Bool
     let style: Int
     let s: CGFloat
-    static let styles = ["ลูก Materia", "สี่เหลี่ยมแบบเดิม", "แถบเล็ก", "ไม่แสดง"]   // default 2 (Settings)
+    static let styles = [L("ลูก Materia", "Materia orbs"), L("สี่เหลี่ยมแบบเดิม", "Classic squares"), L("แถบเล็ก", "Compact strip"), L("ไม่แสดง", "None")]   // default 2 (Settings)
     static let yellow = Color(red: 0.98, green: 0.78, blue: 0.16), purple = Color(red: 0.62, green: 0.3, blue: 0.95),
                red = Color(red: 0.95, green: 0.16, blue: 0.16), gold = Color(red: 1, green: 0.88, blue: 0.55)
 
@@ -281,7 +281,7 @@ struct AchievementsPanel: View {
                 if !model.steam.isEmpty {
                     Text("Steam \(model.steam.filter { $0.got }.count)/\(model.steam.count)").font(.system(size: 26 * s, weight: .semibold))
                 }
-                Text("ออฟไลน์ \(model.local.filter { $0.unlocked != nil }.count)/\(model.local.count) · \(model.local.filter { $0.unlocked != nil }.reduce(0) { $0 + $1.points }) แต้ม")
+                Text(L("ออฟไลน์ \(model.local.filter { $0.unlocked != nil }.count)/\(model.local.count) · \(model.local.filter { $0.unlocked != nil }.reduce(0) { $0 + $1.points }) แต้ม", "Offline \(model.local.filter { $0.unlocked != nil }.count)/\(model.local.count) · \(model.local.filter { $0.unlocked != nil }.reduce(0) { $0 + $1.points }) points"))
                     .font(.system(size: 26 * s, weight: .semibold)).foregroundStyle(.white.opacity(0.8))
             }
             ForEach(all[start..<min(all.count, start + visible)]) { row in
@@ -297,8 +297,8 @@ struct AchievementsPanel: View {
                 }
                 .opacity(row.got ? 1 : 0.6)
             }
-            if all.isEmpty { Text("ยังไม่มีข้อมูล achievement").font(.system(size: 26 * s)) }
-            Text("▲▼ เลื่อน   ·   F1 หรือ Select+△ หรือ × ปิด   ·   \(all.isEmpty ? 0 : start + 1)–\(min(all.count, start + visible)) จาก \(all.count)")
+            if all.isEmpty { Text(L("ยังไม่มีข้อมูล achievement", "No achievement data yet")).font(.system(size: 26 * s)) }
+            Text(L("▲▼ เลื่อน   ·   F1 หรือ Select+△ หรือ × ปิด   ·   \(all.isEmpty ? 0 : start + 1)–\(min(all.count, start + visible)) จาก \(all.count)", "▲▼ scroll   ·   F1, Select+△ or × closes   ·   \(all.isEmpty ? 0 : start + 1)–\(min(all.count, start + visible)) of \(all.count)"))
                 .font(.system(size: 20 * s)).foregroundStyle(.white.opacity(0.6))
         }
         .foregroundStyle(.white)

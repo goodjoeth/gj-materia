@@ -222,13 +222,15 @@ final class ModLibrary: ObservableObject {
         var lines: [String] = []
         for o in (j["overlaps"] as? [[String: Any]] ?? []) {
             let w = o["winner"] as? String ?? "?", l = o["loser"] as? String ?? "?", n = o["files"] as? Int ?? 0
-            lines.append("• \(w) ทับ \(l) (\(n) ไฟล์)")
+            lines.append(L("• \(w) ทับ \(l) (\(n) ไฟล์)", "• \(w) overrides \(l) (\(n) files)"))
         }
         for f in (j["forbids"] as? [[String: Any]] ?? []) {
-            lines.append("• \(f["mod"] as? String ?? "?") ห้ามใช้กับ \(f["other"] as? String ?? "?")")
+            let fm = f["mod"] as? String ?? "?", fo = f["other"] as? String ?? "?"
+                lines.append(L("• \(fm) ห้ามใช้กับ \(fo)", "• \(fm) can't be used with \(fo)"))
         }
         for r in (j["requires"] as? [[String: Any]] ?? []) {
-            lines.append("• \(r["mod"] as? String ?? "?") ต้องมี \(r["why"] as? String ?? r["id"] as? String ?? "?")")
+            let rm = r["mod"] as? String ?? "?", rw = r["why"] as? String ?? r["id"] as? String ?? "?"
+                lines.append(L("• \(rm) ต้องมี \(rw)", "• \(rm) needs \(rw)"))
         }
         return lines.joined(separator: "\n")
     }
@@ -238,7 +240,7 @@ final class ModLibrary: ObservableObject {
     /// Install a downloaded or picked file/folder. New mods go to the top for User Interface
     /// mods (they must win over content mods' fonts), else to the bottom.
     func install(_ src: URL, catalogID: String? = nil, version: String? = nil, keepSource: Bool = true) async {
-        busy = "กำลังติดตั้ง \(src.lastPathComponent)…"
+        busy = L("กำลังติดตั้ง \(src.lastPathComponent)…", "Installing \(src.lastPathComponent)…")
         lastError = nil
         defer { busy = nil }
         let result = await Task.detached { Installer.install(src) }.value
@@ -261,7 +263,7 @@ enum Installer {
     static func install(_ src: URL) -> Result<String, InstallError> {
         let fm = Paths.fm
         var isDir: ObjCBool = false
-        guard fm.fileExists(atPath: src.path, isDirectory: &isDir) else { return .failure(.init(message: "ไม่พบไฟล์")) }
+        guard fm.fileExists(atPath: src.path, isDirectory: &isDir) else { return .failure(.init(message: L("ไม่พบไฟล์", "File not found"))) }
         let base = src.deletingPathExtension().lastPathComponent
         if isDir.boolValue { return place(src, as: src.lastPathComponent, copy: true) }
         let head = (try? FileHandle(forReadingFrom: src).readData(ofLength: 8)) ?? Data()
@@ -273,16 +275,16 @@ enum Installer {
             if b[0] == 0x37 {
                 var err = [CChar](repeating: 0, count: 512)
                 let rc = src.path.withCString { a in tmp.path.withCString { o in c_un7z(a, o, &err, err.count) } }
-                if rc != 0 { return .failure(.init(message: "แตกไฟล์ไม่ได้: " + String(cString: err))) }
+                if rc != 0 { return .failure(.init(message: L("แตกไฟล์ไม่ได้: ", "Can't unpack: ") + String(cString: err))) }
             } else {
                 #if os(macOS)
                 let p = Process()
                 p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
                 p.arguments = ["-x", "-k", src.path, tmp.path]
                 try? p.run(); p.waitUntilExit()
-                if p.terminationStatus != 0 { return .failure(.init(message: "แตกไฟล์ zip ไม่ได้")) }
+                if p.terminationStatus != 0 { return .failure(.init(message: L("แตกไฟล์ zip ไม่ได้", "Can't unpack the zip"))) }
                 #else
-                return .failure(.init(message: "ยังแตกไฟล์ .zip บนอุปกรณ์นี้ไม่ได้"))
+                return .failure(.init(message: L("ยังแตกไฟล์ .zip บนอุปกรณ์นี้ไม่ได้", "Can't unpack .zip files on this device yet")))
                 #endif
             }
             if let iro = first(in: tmp, where: { $0.pathExtension.lowercased() == "iro" }) {
@@ -314,7 +316,7 @@ enum Installer {
         try? Paths.fm.removeItem(at: dst)
         do {
             if copy { try Paths.fm.copyItem(at: item, to: dst) } else { try Paths.fm.moveItem(at: item, to: dst) }
-        } catch { return .failure(.init(message: "ติดตั้งไม่ได้: \(error.localizedDescription)")) }
+        } catch { return .failure(.init(message: L("ติดตั้งไม่ได้: \(error.localizedDescription)", "Could not install: \(error.localizedDescription)"))) }
         return .success(name)
     }
 }
@@ -357,7 +359,7 @@ final class Catalog: ObservableObject {
             } else {
                 data = try? Data(contentsOf: cache)
             }
-            guard let d = data, let root = XMLReader.parse(d) else { error = "โหลด catalog \(name) ไม่ได้"; continue }
+            guard let d = data, let root = XMLReader.parse(d) else { error = L("โหลด catalog \(name) ไม่ได้", "Can't load the \(name) catalog"); continue }
             for m in root.descendants("Mod") {
                 guard let lv = m.child("LatestVersion") else { continue }
                 all.append(CatalogMod(
@@ -466,7 +468,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
             guard let d = try? Data(contentsOf: f), let p = try? JSONDecoder().decode(Partial.self, from: d) else { continue }
             let mb = { (b: Int64) in String(format: "%.0f", Double(b) / 1_048_576) }
             jobs[p.mod.id] = Job(progress: p.total > 0 ? Double(p.bytes) / Double(p.total) : 0,
-                                 status: "หยุดไว้ที่ \(mb(p.bytes)) / \(mb(p.total)) MB", task: nil, mod: p.mod,
+                                 status: L("หยุดไว้ที่ \(mb(p.bytes)) / \(mb(p.total)) MB", "Paused at \(mb(p.bytes)) / \(mb(p.total)) MB"), task: nil, mod: p.mod,
                                  bytes: p.bytes, total: p.total, paused: true)
             if !p.byUser { resume(p.mod.id) }
         }
@@ -482,12 +484,12 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     func start(_ m: CatalogMod) {
         if let j = jobs[m.id] { if j.paused { resume(m.id) }; return }
         guard let url = m.links.lazy.compactMap(Catalog.resolve).first else {
-            jobs[m.id] = Job(progress: 0, status: "ต้องดาวน์โหลดผ่านเบราว์เซอร์", task: nil, mod: m)
+            jobs[m.id] = Job(progress: 0, status: L("ต้องดาวน์โหลดผ่านเบราว์เซอร์", "Has to be downloaded in a browser"), task: nil, mod: m)
             return
         }
         let t = session.downloadTask(with: url)
         t.taskDescription = m.id
-        jobs[m.id] = Job(progress: 0, status: "กำลังดาวน์โหลด…", task: t, mod: m)
+        jobs[m.id] = Job(progress: 0, status: L("กำลังดาวน์โหลด…", "Downloading…"), task: t, mod: m)
         t.resume()
     }
 
@@ -501,7 +503,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
             t = session.downloadTask(with: url); j.bytes = 0
         } else { return }
         t.taskDescription = id
-        j.task = t; j.paused = false; j.status = "กำลังดาวน์โหลดต่อ…"; j.started = Date(); j.startBytes = j.bytes
+        j.task = t; j.paused = false; j.status = L("กำลังดาวน์โหลดต่อ…", "Resuming the download…"); j.started = Date(); j.startBytes = j.bytes
         jobs[id] = j
         t.resume()
     }
@@ -509,7 +511,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
     /// Pause: what it has is kept for later.
     func pause(_ id: String) {
         guard let t = jobs[id]?.task else { return }
-        jobs[id]?.task = nil; jobs[id]?.paused = true; jobs[id]?.status = "กำลังหยุด…"
+        jobs[id]?.task = nil; jobs[id]?.paused = true; jobs[id]?.status = L("กำลังหยุด…", "Pausing…")
         t.cancel { data in
             Task { @MainActor in self.keep(id, data, byUser: true) }
         }
@@ -526,8 +528,8 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
         if let data { try? data.write(to: Self.resumeFile(id)) } else { try? Paths.fm.removeItem(at: Self.resumeFile(id)); j.bytes = 0 }
         if let d = try? JSONEncoder().encode(Partial(mod: j.mod, byUser: byUser, bytes: j.bytes, total: j.total)) { try? d.write(to: Self.infoFile(id)) }
         j.task = nil; j.paused = true
-        j.status = data == nil ? "หยุดไว้ (เซิร์ฟเวอร์นี้ต่อไม่ได้ จะเริ่มใหม่)"
-                               : String(format: "หยุดไว้ที่ %.0f / %.0f MB", Double(j.bytes) / 1_048_576, Double(j.total) / 1_048_576)
+        j.status = data == nil ? L("หยุดไว้ (เซิร์ฟเวอร์นี้ต่อไม่ได้ จะเริ่มใหม่)", "Paused (this server can't resume; it will start over)")
+                               : String(format: L("หยุดไว้ที่ %.0f / %.0f MB", "Paused at %.0f / %.0f MB"), Double(j.bytes) / 1_048_576, Double(j.total) / 1_048_576)
         jobs[id] = j
     }
 
@@ -554,7 +556,7 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
             let total = e > 0 ? e : Int64(j.mod.sizeKB) * 1024
             j.progress = total > 0 ? min(1, Double(w) / Double(total)) : 0
             j.bytes = w; j.total = total
-            j.status = String(format: "กำลังดาวน์โหลด %.0f / %.0f MB", Double(w) / 1_048_576, Double(total) / 1_048_576)
+            j.status = String(format: L("กำลังดาวน์โหลด %.0f / %.0f MB", "Downloading %.0f / %.0f MB"), Double(w) / 1_048_576, Double(total) / 1_048_576)
             jobs[id] = j
         }
     }
@@ -576,16 +578,16 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
             try? Paths.fm.removeItem(at: Self.resumeFile(id)); try? Paths.fm.removeItem(at: Self.infoFile(id))
             guard var j = jobs[id] else { return }
             if !moved || html || (t.response as? HTTPURLResponse).map({ $0.statusCode >= 400 }) == true {
-                j.status = "ดาวน์โหลดไม่สำเร็จ (ลองเปิดผ่านเบราว์เซอร์)"; j.task = nil; jobs[id] = j
+                j.status = L("ดาวน์โหลดไม่สำเร็จ (ลองเปิดผ่านเบราว์เซอร์)", "Download failed (try opening it in a browser)"); j.task = nil; jobs[id] = j
                 finish(id, ok: false, j.status)
                 return
             }
-            j.status = "กำลังติดตั้ง…"; j.progress = 1; jobs[id] = j
+            j.status = L("กำลังติดตั้ง…", "Installing…"); j.progress = 1; jobs[id] = j
             let mod = j.mod
             Task { @MainActor in
                 await self.library?.install(dst, catalogID: mod.id, version: mod.version, keepSource: false)
                 if let e = self.library?.lastError { self.jobs[id]?.status = e; self.jobs[id]?.task = nil; self.finish(id, ok: false, e) }
-                else { self.finish(id, ok: true, "ติดตั้งแล้ว"); self.jobs[id] = nil }
+                else { self.finish(id, ok: true, L("ติดตั้งแล้ว", "Installed")); self.jobs[id] = nil }
             }
         }
     }
@@ -600,12 +602,12 @@ final class Downloads: NSObject, ObservableObject, URLSessionDownloadDelegate {
             keep(id, data, byUser: false)
             if j.retries < 5 {
                 jobs[id]?.retries = j.retries + 1
-                jobs[id]?.status = "เน็ตหลุด จะดาวน์โหลดต่อใน 10 วินาที (\(e.localizedDescription))"
+                jobs[id]?.status = L("เน็ตหลุด จะดาวน์โหลดต่อใน 10 วินาที (\(e.localizedDescription))", "Connection lost; resuming in 10 seconds (\(e.localizedDescription))")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
                     MainActor.assumeIsolated { if self?.jobs[id]?.paused == true && self?.jobs[id]?.task == nil { self?.resume(id) } }
                 }
             } else {
-                jobs[id]?.status = "ดาวน์โหลดไม่สำเร็จ: \(e.localizedDescription) (กดดาวน์โหลดต่อเพื่อลองอีกครั้ง)"
+                jobs[id]?.status = L("ดาวน์โหลดไม่สำเร็จ: \(e.localizedDescription) (กดดาวน์โหลดต่อเพื่อลองอีกครั้ง)", "Download failed: \(e.localizedDescription) (press Resume to try again)")
             }
         }
     }

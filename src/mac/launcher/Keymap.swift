@@ -9,13 +9,13 @@ import AppKit
 struct Keymap: Equatable {
     struct Button { let name: String; let title: String; let defaults: [UInt16] }
     static let buttons: [Button] = [
-        Button(name: "up", title: "ขึ้น", defaults: [126]),
-        Button(name: "down", title: "ลง", defaults: [125]),
-        Button(name: "left", title: "ซ้าย", defaults: [123]),
-        Button(name: "right", title: "ขวา", defaults: [124]),
-        Button(name: "ok", title: "ตกลง (○)", defaults: [36, 76, 40]),
-        Button(name: "cancel", title: "ยกเลิก (×)", defaults: [51, 38]),
-        Button(name: "menu", title: "เมนู (△)", defaults: [49, 34]),
+        Button(name: "up", title: L("ขึ้น", "Up"), defaults: [126]),
+        Button(name: "down", title: L("ลง", "Down"), defaults: [125]),
+        Button(name: "left", title: L("ซ้าย", "Left"), defaults: [123]),
+        Button(name: "right", title: L("ขวา", "Right"), defaults: [124]),
+        Button(name: "ok", title: L("ตกลง (○)", "OK (○)"), defaults: [36, 76, 40]),
+        Button(name: "cancel", title: L("ยกเลิก (×)", "Cancel (×)"), defaults: [51, 38]),
+        Button(name: "menu", title: L("เมนู (△)", "Menu (△)"), defaults: [49, 34]),
         Button(name: "square", title: "□", defaults: [56, 60, 32]),
         Button(name: "l1", title: "L1", defaults: [12]),
         Button(name: "r1", title: "R1", defaults: [13]),
@@ -23,7 +23,7 @@ struct Keymap: Equatable {
         Button(name: "r2", title: "R2", defaults: [19]),
         Button(name: "select", title: "Select", defaults: [48]),
         Button(name: "start", title: "Start", defaults: [35]),
-        Button(name: "l3", title: "L3 (โหมด shortcut)", defaults: [37]),
+        Button(name: "l3", title: L("L3 (โหมด shortcut)", "L3 (shortcut mode)"), defaults: [37]),
         Button(name: "r3", title: "R3", defaults: [15]),
     ]
     var keys: [String: [UInt16]]
@@ -62,8 +62,8 @@ struct Keymap: Equatable {
     static func keyName(_ k: UInt16) -> String {
         let named: [UInt16: String] = [
             126: "↑", 125: "↓", 123: "←", 124: "→", 36: "Return", 76: "Enter (keypad)", 51: "Delete", 117: "Del ⌦",
-            49: "Space", 48: "Tab", 53: "Esc", 56: "Shift", 60: "Shift ขวา", 59: "Control", 62: "Control ขวา",
-            58: "Option", 61: "Option ขวา", 57: "Caps Lock", 115: "Home", 119: "End", 116: "Page Up", 121: "Page Down",
+            49: "Space", 48: "Tab", 53: "Esc", 56: "Shift", 60: L("Shift ขวา", "Right Shift"), 59: "Control", 62: L("Control ขวา", "Right Control"),
+            58: "Option", 61: L("Option ขวา", "Right Option"), 57: "Caps Lock", 115: "Home", 119: "End", 116: "Page Up", 121: "Page Down",
             122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6", 98: "F7", 100: "F8", 101: "F9", 109: "F10", 103: "F11", 111: "F12",
             82: "0 (keypad)", 83: "1 (keypad)", 84: "2 (keypad)", 85: "3 (keypad)", 86: "4 (keypad)", 87: "5 (keypad)",
             88: "6 (keypad)", 89: "7 (keypad)", 91: "8 (keypad)", 92: "9 (keypad)", 65: ". (keypad)", 67: "* (keypad)",
@@ -76,12 +76,12 @@ struct Keymap: Equatable {
             18: "1", 19: "2", 20: "3", 21: "4", 23: "5", 22: "6", 26: "7", 28: "8", 25: "9", 29: "0",
             27: "-", 24: "=", 33: "[", 30: "]", 42: "\\", 41: ";", 39: "'", 43: ",", 47: ".", 44: "/", 50: "`",
         ]
-        return letters[k] ?? "คีย์ \(k)"
+        return letters[k] ?? L("คีย์ \(k)", "Key \(k)")
     }
 
     func text(_ button: String) -> String {
         let k = keys[button] ?? []
-        return k.isEmpty ? "—" : k.map(Self.keyName).joined(separator: " หรือ ")
+        return k.isEmpty ? "—" : k.map(Self.keyName).joined(separator: L(" หรือ ", " or "))
     }
 }
 
@@ -99,24 +99,24 @@ struct KeymapEditor: View {
             ForEach(Keymap.buttons, id: \.name) { b in
                 HStack {
                     Text(b.title).frame(width: 170, alignment: .leading)
-                    Text(waiting == b.name ? "กดปุ่มที่ต้องการ… (Esc ยกเลิก)" : map.text(b.name))
+                    Text(waiting == b.name ? L("กดปุ่มที่ต้องการ… (Esc ยกเลิก)", "Press the key you want… (Esc cancels)") : map.text(b.name))
                         .monospaced().foregroundStyle(waiting == b.name ? Color.accentColor : .primary)
                     Spacer()
                     if map.keys[b.name] != b.defaults {
-                        Button("ค่าเดิม") { map.keys[b.name] = []; for k in b.defaults { map.assign(k, to: b.name) }; map.save() }
+                        Button(L("ค่าเดิม", "Default")) { map.keys[b.name] = []; for k in b.defaults { map.assign(k, to: b.name) }; map.save() }
                             .buttonStyle(.borderless)
                     }
-                    Button(waiting == b.name ? "ยกเลิก" : "เปลี่ยน") { waiting == b.name ? stop() : listen(b.name, add: false) }
-                    Button("เพิ่ม") { listen(b.name, add: true) }.disabled(waiting != nil)
+                    Button(waiting == b.name ? L("ยกเลิก", "Cancel") : L("เปลี่ยน", "Change")) { waiting == b.name ? stop() : listen(b.name, add: false) }
+                    Button(L("เพิ่ม", "Add")) { listen(b.name, add: true) }.disabled(waiting != nil)
                 }
             }
             HStack {
                 if let n = note { Text(n).font(.footnote).foregroundStyle(.secondary) }
                 Spacer()
-                Button("คืนค่าเริ่มต้นทั้งหมด") { map = .standard; map.save(); note = nil }.disabled(map == .standard)
+                Button(L("คืนค่าเริ่มต้นทั้งหมด", "Reset all to defaults")) { map = .standard; map.save(); note = nil }.disabled(map == .standard)
             }
-        } header: { Text("ปุ่มคีย์บอร์ด") } footer: {
-            Text("มีผลตอนเริ่มเกมครั้งถัดไป F1 (achievement), Esc และปุ่มที่กดพร้อม Cmd เป็นของแอป ใช้แทนปุ่มเกมไม่ได้ ปุ่มจอยเปลี่ยนในเกมที่ Config > Controller")
+        } header: { Text(L("ปุ่มคีย์บอร์ด", "Keyboard keys")) } footer: {
+            Text(L("มีผลตอนเริ่มเกมครั้งถัดไป F1 (achievement), Esc และปุ่มที่กดพร้อม Cmd เป็นของแอป ใช้แทนปุ่มเกมไม่ได้ ปุ่มจอยเปลี่ยนในเกมที่ Config > Controller", "Takes effect the next time the game starts. F1 (achievements), Esc and keys pressed with Cmd belong to the app and can't be game buttons. Change the controller's buttons in the game, under Config > Controller."))
                 .font(.footnote)
         }
         .onDisappear { stop() }
@@ -143,12 +143,12 @@ struct KeymapEditor: View {
                 return e
             }
             if k == 53 { stop(); return nil }
-            if Keymap.reserved.contains(k) || k >= 128 { note = "\(Keymap.keyName(k)) ใช้ไม่ได้ (แอปใช้อยู่)"; return nil }
+            if Keymap.reserved.contains(k) || k >= 128 { note = L("\(Keymap.keyName(k)) ใช้ไม่ได้ (แอปใช้อยู่)", "\(Keymap.keyName(k)) can't be used (the app uses it)"); return nil }
             let had = Keymap.buttons.first { map.keys[$0.name]?.contains(k) == true && $0.name != button }
             if !add { map.keys[button] = [] }
             map.assign(k, to: button)
             map.save()
-            note = had.map { "\(Keymap.keyName(k)) ย้ายมาจาก \($0.title) แล้ว" }
+            note = had.map { L("\(Keymap.keyName(k)) ย้ายมาจาก \($0.title) แล้ว", "\(Keymap.keyName(k)) moved here from \($0.title)") }
             stop()
             return nil
         }

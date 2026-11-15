@@ -176,7 +176,7 @@ final class SteamConnection: NSObject, @unchecked Sendable {
         let (d, _) = try await session.data(from: url)
         let j = try JSONSerialization.jsonObject(with: d) as? [String: Any]
         let list = ((j?["response"] as? [String: Any])?["serverlist"] as? [[String: Any]]) ?? []
-        guard let ep = list.compactMap({ $0["endpoint"] as? String }).first else { throw SteamError(message: "ไม่พบเซิร์ฟเวอร์ Steam") }
+        guard let ep = list.compactMap({ $0["endpoint"] as? String }).first else { throw SteamError(message: L("ไม่พบเซิร์ฟเวอร์ Steam", "Can't find a Steam server")) }
         let t = session.webSocketTask(with: URL(string: "wss://\(ep)/cmsocket/")!)
         t.maximumMessageSize = 64 << 20
         ws = t
@@ -187,7 +187,7 @@ final class SteamConnection: NSObject, @unchecked Sendable {
 
     func close() {
         heartbeat?.cancel()
-        failAll(SteamError(message: "การเชื่อมต่อ Steam ถูกปิด"))
+        failAll(SteamError(message: L("การเชื่อมต่อ Steam ถูกปิด", "The Steam connection was closed")))
         ws?.cancel(with: .normalClosure, reason: nil)
     }
 
@@ -198,7 +198,7 @@ final class SteamConnection: NSObject, @unchecked Sendable {
             case .success(.data(let d)): self.handle(d); self.receive()
             case .success: self.receive()
             case .failure(let e):
-                self.failAll(SteamError(message: "ขาดการเชื่อมต่อกับ Steam: \(e.localizedDescription)"))
+                self.failAll(SteamError(message: L("ขาดการเชื่อมต่อกับ Steam: \(e.localizedDescription)", "Lost the connection to Steam: \(e.localizedDescription)")))
             }
         }
     }
@@ -246,7 +246,7 @@ final class SteamConnection: NSObject, @unchecked Sendable {
         withUnsafeBytes(of: (emsg | 0x8000_0000).littleEndian) { out.append(contentsOf: $0) }
         withUnsafeBytes(of: UInt32(h.data.count).littleEndian) { out.append(contentsOf: $0) }
         out.append(h.data); out.append(body.data)
-        guard let ws else { throw SteamError(message: "ยังไม่ได้เชื่อมต่อ Steam") }
+        guard let ws else { throw SteamError(message: L("ยังไม่ได้เชื่อมต่อ Steam", "Not connected to Steam")) }
         try await ws.send(.data(out))
     }
 
@@ -257,7 +257,7 @@ final class SteamConnection: NSObject, @unchecked Sendable {
         let job = newJob()
         return try await withCheckedThrowingContinuation { (c: CheckedContinuation<SteamPacket, Error>) in
             lock.lock()
-            if closed { lock.unlock(); c.resume(throwing: SteamError(message: "การเชื่อมต่อ Steam ถูกปิด")); return }
+            if closed { lock.unlock(); c.resume(throwing: SteamError(message: L("การเชื่อมต่อ Steam ถูกปิด", "The Steam connection was closed"))); return }
             let p = Pending(c, job, reply)
             jobWaiters[job] = p
             emsgWaiters[reply] = p
@@ -266,7 +266,7 @@ final class SteamConnection: NSObject, @unchecked Sendable {
                 do { try await self.send(emsg, body: body, job: job, targetJobName: targetJobName) }
                 catch { self.fail(job, reply, error) }
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1e9))
-                self.fail(job, reply, SteamError(message: "Steam ไม่ตอบกลับ"))
+                self.fail(job, reply, SteamError(message: L("Steam ไม่ตอบกลับ", "Steam did not answer")))
             }
         }
     }
@@ -302,7 +302,7 @@ final class SteamConnection: NSObject, @unchecked Sendable {
         let eresult = r.int32(1) ?? 2
         guard eresult == 1 else {
             let again = [5, 15, 26, 27, 84].contains(Int(eresult)) && eresult != 84
-            throw SteamError(message: "Steam ไม่ยอมให้ลงชื่อเข้าใช้ (EResult \(eresult))", signInAgain: again)
+            throw SteamError(message: L("Steam ไม่ยอมให้ลงชื่อเข้าใช้ (EResult \(eresult))", "Steam refused the sign-in (EResult \(eresult))"), signInAgain: again)
         }
         if let s = p.header.int(1) { steamID = s }
         if let s = p.header.int32(2) { sessionID = s }
@@ -380,7 +380,7 @@ final class SteamLink: ObservableObject {
 
     /// The description to show: a hidden achievement's stays hidden until it is unlocked (as on Steam).
     nonisolated static func shownDesc(_ a: Item, reveal: Bool = false) -> String {
-        if a.hidden && !a.got && !reveal { return "Achievement ลับ: จะเห็นรายละเอียดเมื่อปลดล็อก" }
+        if a.hidden && !a.got && !reveal { return L("Achievement ลับ: จะเห็นรายละเอียดเมื่อปลดล็อก", "Hidden achievement: its details show once unlocked") }
         return a.desc
     }
 
@@ -393,7 +393,7 @@ final class SteamLink: ObservableObject {
         info = Info(); saveInfo()
         try? Paths.fm.removeItem(at: Self.state)
         achievements = []
-        status = "ออกจากระบบ Steam แล้ว"
+        status = L("ออกจากระบบ Steam แล้ว", "Signed out of Steam")
     }
 
     func cancelSignIn() { signInTask?.cancel(); signInTask = nil; qrURL = nil; busy = false }
@@ -402,7 +402,7 @@ final class SteamLink: ObservableObject {
 
     func signIn() {
         guard signInTask == nil else { return }
-        busy = true; status = "กำลังเชื่อมต่อ Steam…"
+        busy = true; status = L("กำลังเชื่อมต่อ Steam…", "Connecting to Steam…")
         signInTask = Task {
             let c = SteamConnection()
             defer { c.close(); signInTask = nil; busy = false; qrURL = nil }
@@ -413,32 +413,32 @@ final class SteamLink: ObservableObject {
                 req.string(1, "GJ Materia"); req.uint(2, 1); req.message(3, dev); req.string(4, "Client")
                 let (er, r) = try await c.call("Authentication.BeginAuthSessionViaQR#1", req, authed: false)
                 guard er == 1, var clientID = r.int(1), let requestID = r.bytes(3) else {
-                    throw SteamError(message: "Steam ไม่สร้าง QR ให้ (EResult \(er))")
+                    throw SteamError(message: L("Steam ไม่สร้าง QR ให้ (EResult \(er))", "Steam did not make a QR code (EResult \(er))"))
                 }
                 qrURL = r.string(2)
-                status = "สแกน QR ด้วยแอป Steam บนมือถือ (เมนู Steam Guard → สแกน QR)"
+                status = L("สแกน QR ด้วยแอป Steam บนมือถือ (เมนู Steam Guard → สแกน QR)", "Scan the QR code with the Steam app on your phone (Steam Guard → Scan a QR code)")
                 let interval = Double(r.float(4) ?? 5)
                 while !Task.isCancelled {
                     try await Task.sleep(nanoseconds: UInt64(max(1, interval) * 1e9))
                     var poll = PBWriter(); poll.uint(1, clientID); poll.bytes(2, requestID)
                     let (pe, p) = try await c.call("Authentication.PollAuthSessionStatus#1", poll, authed: false)
-                    if pe != 1 { throw SteamError(message: "QR หมดอายุแล้ว กดลงชื่อเข้าใช้ใหม่ (EResult \(pe))") }
+                    if pe != 1 { throw SteamError(message: L("QR หมดอายุแล้ว กดลงชื่อเข้าใช้ใหม่ (EResult \(pe))", "The QR code expired; sign in again (EResult \(pe))")) }
                     if let n = p.int(1), n != 0 { clientID = n }
                     if let u = p.string(2), !u.isEmpty { qrURL = u }
                     if let token = p.string(3), !token.isEmpty, let account = p.string(6) {
                         qrURL = nil
-                        status = "กำลังลงชื่อเข้าใช้ \(account)…"
+                        status = L("กำลังลงชื่อเข้าใช้ \(account)…", "Signing in as \(account)…")
                         try await c.logOn(account: account, token: token)
                         Keychain.set(account, token)
                         info.account = account; saveInfo()
-                        do { let n = try await exchange(c); status = "ลงชื่อเข้าใช้แล้ว: \(account)" + (n.isEmpty ? "" : " · ส่ง \(n.count) achievement") }
-                        catch { status = "ลงชื่อเข้าใช้แล้ว แต่ยังอ่าน achievement ของ FF7 ไม่ได้: \(error.localizedDescription) (กด Sync อีกครั้ง)" }
+                        do { let n = try await exchange(c); status = L("ลงชื่อเข้าใช้แล้ว: \(account)", "Signed in: \(account)") + (n.isEmpty ? "" : L(" · ส่ง \(n.count) achievement", " · sent \(n.count) achievement(s)")) }
+                        catch { status = L("ลงชื่อเข้าใช้แล้ว แต่ยังอ่าน achievement ของ FF7 ไม่ได้: \(error.localizedDescription) (กด Sync อีกครั้ง)", "Signed in, but FF7's achievements could not be read: \(error.localizedDescription) (press Sync again)") }
                         await c.logOff()
                         return
                     }
                 }
             } catch is CancellationError {
-                status = "ยกเลิกแล้ว"
+                status = L("ยกเลิกแล้ว", "Cancelled")
             } catch {
                 status = error.localizedDescription
             }
@@ -457,13 +457,13 @@ final class SteamLink: ObservableObject {
         do {
             try await c.connect()
             do { try await c.logOn(account: info.account, token: token) }
-            catch let e as SteamError where e.signInAgain { signOut(); status = "Steam ขอให้ลงชื่อเข้าใช้ใหม่"; return [] }
+            catch let e as SteamError where e.signInAgain { signOut(); status = L("Steam ขอให้ลงชื่อเข้าใช้ใหม่", "Steam asks you to sign in again"); return [] }
             let n = try await exchange(c)
             await c.logOff()
-            status = n.isEmpty ? "ซิงก์กับ Steam แล้ว" : "ส่งไป Steam แล้ว: " + n.joined(separator: ", ")
+            status = n.isEmpty ? L("ซิงก์กับ Steam แล้ว", "Synced with Steam") : L("ส่งไป Steam แล้ว: ", "Sent to Steam: ") + n.joined(separator: ", ")
             return n
         } catch {
-            status = "ซิงก์ไม่สำเร็จ: \(error.localizedDescription)"
+            status = L("ซิงก์ไม่สำเร็จ: \(error.localizedDescription)", "Sync failed: \(error.localizedDescription)")
             return []
         }
     }
@@ -490,7 +490,7 @@ final class SteamLink: ObservableObject {
     private func exchange(_ c: SteamConnection) async throws -> [String] {
         if info.appid == 0 {
             info.appid = await owns(c, Self.appRerelease) ? Self.appRerelease : await owns(c, Self.app2013) ? Self.app2013 : 0
-            if info.appid == 0 { throw SteamError(message: "บัญชี Steam นี้ไม่มี FINAL FANTASY VII จึงไม่มี achievement ของ FF7") }
+            if info.appid == 0 { throw SteamError(message: L("บัญชี Steam นี้ไม่มี FINAL FANTASY VII จึงไม่มี achievement ของ FF7", "This Steam account doesn't own FINAL FANTASY VII, so it has no FF7 achievements")) }
             saveInfo()
         }
         let app = info.appid
@@ -502,9 +502,9 @@ final class SteamLink: ObservableObject {
             st = try await stats(c, app)
         }
         defer { if playingSent { Task { await self.playing(c, nil) } } }
-        guard (st.int32(2) ?? 2) == 1 else { throw SteamError(message: "Steam ไม่ส่ง achievement ของ FF7 มา (EResult \(st.int32(2) ?? 2))") }
+        guard (st.int32(2) ?? 2) == 1 else { throw SteamError(message: L("Steam ไม่ส่ง achievement ของ FF7 มา (EResult \(st.int32(2) ?? 2))", "Steam did not send FF7's achievements (EResult \(st.int32(2) ?? 2))")) }
         let schema = Self.parseSchema(KeyValue.parseBinary(st.bytes(4) ?? Data()))
-        if schema.isEmpty { throw SteamError(message: "Steam ไม่ส่งรายการ achievement ของ FF7 มา") }
+        if schema.isEmpty { throw SteamError(message: L("Steam ไม่ส่งรายการ achievement ของ FF7 มา", "Steam did not send the list of FF7's achievements")) }
         var values = Self.values(st)
         let crc = UInt32(truncatingIfNeeded: st.int(3) ?? 0)
 
@@ -544,7 +544,7 @@ final class SteamLink: ObservableObject {
                 let back = Self.values(again)
                 if push.allSatisfy({ (back[$0.key] ?? 0) & $0.value == $0.value }) { values = back; confirmed = true; break }
             }
-            if !confirmed { throw SteamError(message: "Steam ยังไม่รับ achievement (จะส่งใหม่ครั้งหน้า)") }
+            if !confirmed { throw SteamError(message: L("Steam ยังไม่รับ achievement (จะส่งใหม่ครั้งหน้า)", "Steam did not accept the achievement yet (it will be sent again next time)")) }
         }
         var s = "appid \(app)\n"
         for a in schema.values.sorted(by: { ($0.stat, $0.bit) < ($1.stat, $1.bit) }) {
