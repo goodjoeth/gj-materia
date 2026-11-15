@@ -27,8 +27,8 @@ python3 -c 'import capstone' 2>/dev/null || die "Python's capstone is missing: p
 echo "ok"
 
 step "2/8 toolkits and libraries (pinned, patched)"
+bash tools/fetch_deps_mac.sh | tail -1        # first: setup's FFNx edits touch a library header too
 [ -d external/FFNx/.git ] && [ -f external/.setup-mac-done ] || { bash tools/setup_mac.sh; touch external/.setup-mac-done; }
-bash tools/fetch_deps_mac.sh | tail -1
 
 step "3/8 your game files"
 if [ -n "$GAME" ]; then python3 -I tools/import_game.py "$GAME"; fi
