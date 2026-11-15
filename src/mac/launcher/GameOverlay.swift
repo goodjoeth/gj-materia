@@ -95,14 +95,14 @@ struct GameOverlayView: View {
 }
 
 /// The special modes' icons, top right while a mode is on, in the style chosen in Settings:
-/// 0 Materia orbs, 1 the classic squares, 2 one compact strip, 3 none. Also the Settings preview.
+/// 0 Materia orbs, 1 the classic squares, 2 one compact strip (the default), 3 none. Also the Settings preview.
 struct BoosterIcons: View {
     let speed: Int
     let noBattles: Bool
     let battlePlus: Bool
     let style: Int
     let s: CGFloat
-    static let styles = ["ลูก Materia", "สี่เหลี่ยมแบบเดิม", "แถบเล็ก", "ไม่แสดง"]
+    static let styles = ["ลูก Materia", "สี่เหลี่ยมแบบเดิม", "แถบเล็ก", "ไม่แสดง"]   // default 2 (Settings)
     static let yellow = Color(red: 0.98, green: 0.78, blue: 0.16), purple = Color(red: 0.62, green: 0.3, blue: 0.95),
                red = Color(red: 0.95, green: 0.16, blue: 0.16), gold = Color(red: 1, green: 0.88, blue: 0.55)
 

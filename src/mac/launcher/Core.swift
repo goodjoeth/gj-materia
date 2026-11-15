@@ -73,7 +73,7 @@ struct Settings: Codable, Equatable {
     var gilMult = 1, expMult = 1, apMult = 1
     var encounters = true
     var display = ""           // the screen to play on (macOS: NSScreen name; "" the main one)
-    var boosterIcons = 0       // the special modes' icons over the game (GameOverlay.swift BoosterIcons.styles)
+    var boosterIcons = 2       // (default: the compact strip) the special modes' icons over the game (GameOverlay.swift BoosterIcons.styles)
     var battleHud = 0          // 21:9 battles, the status windows: 0 where 16:9 has them, 1 halfway out, 2 at the edge
 
     init() {}
