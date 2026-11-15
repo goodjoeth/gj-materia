@@ -95,19 +95,6 @@ struct MeteorSky: View {
     }
 }
 
-/// Good JOE's logo (Resources/goodjoe-logo.png).
-struct GoodJoeLogo: View {
-    var height: CGFloat
-    var body: some View {
-        #if os(macOS)
-        if let u = Bundle.main.url(forResource: "goodjoe-logo", withExtension: "png"), let img = NSImage(contentsOf: u) {
-            Image(nsImage: img).resizable().interpolation(.high).aspectRatio(contentMode: .fit).frame(height: height)
-                .shadow(color: .black.opacity(0.7), radius: 3, y: 2)
-        }
-        #endif
-    }
-}
-
 /// A torn cloth edge across the bottom of its frame.
 struct CloakEdge: Shape {
     func path(in rect: CGRect) -> Path {

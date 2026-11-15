@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 T="$(mktemp -d)"
-swift "$ROOT/tools/make_icon_mac.swift" "$T/1024.png" "$ROOT/macos/icon/gj-logo.png"
+swift "$ROOT/tools/make_icon_mac.swift" "$T/1024.png"
 mkdir -p "$T/AppIcon.iconset" "$ROOT/macos/icon"
 for s in 16 32 128 256 512; do
   sips -z $s $s "$T/1024.png" --out "$T/AppIcon.iconset/icon_${s}x${s}.png" >/dev/null

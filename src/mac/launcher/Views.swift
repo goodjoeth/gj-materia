@@ -164,9 +164,11 @@ struct LauncherView: View {
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190)
             .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 2) {
-                    GoodJoeLogo(height: 54)
-                    Text("GJ Materia").font(.caption2.weight(.semibold)).foregroundStyle(Theme.gold.opacity(0.8))
+                VStack(spacing: 4) {
+                    #if os(macOS)
+                    Image(nsImage: NSApp.applicationIconImage).resizable().interpolation(.high).frame(width: 46, height: 46)
+                    #endif
+                    Text("GJ Materia").font(.caption.weight(.semibold)).foregroundStyle(Theme.gold.opacity(0.9))
                 }
                 .padding(.bottom, 12)
             }
@@ -302,11 +304,8 @@ struct PlayView: View {
             #endif
             VStack(spacing: 6) {
                 GoldText(text: "FINAL FANTASY VII", size: 42)
-                HStack(spacing: 10) {
-                    Text("GJ MATERIA  ·  BY").font(.system(size: 12, weight: .semibold)).tracking(3)
-                        .foregroundStyle(Theme.goldLight.opacity(0.7))
-                    GoodJoeLogo(height: 48)
-                }
+                Text("GJ MATERIA  ·  BY GOOD JOE").font(.system(size: 12, weight: .semibold)).tracking(3)
+                    .foregroundStyle(Theme.goldLight.opacity(0.7))
             }
             if !Paths.gameReady || state.gameFiles.dataLinkedTo != nil || !state.gameFiles.exeMatches {
                 GameFilesBox(files: state.gameFiles).glassCard().frame(maxWidth: 640)

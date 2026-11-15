@@ -89,8 +89,6 @@ file(WRITE "${CMAKE_BINARY_DIR}/source-tree.txt" "${FF7_ROOT}\n")
 # the icon (tools/make_icon_mac.sh draws it)
 target_sources(FF7Recomp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/icon/AppIcon.icns")
 set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/icon/AppIcon.icns" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-target_sources(FF7Recomp PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/icon/goodjoe-logo.png")   # the launcher shows it
-set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/icon/goodjoe-logo.png" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 set(FF7_RES "$<TARGET_BUNDLE_CONTENT_DIR:FF7Recomp>/Resources")
 file(GLOB FF7_FFNX_TOMLS "${FF7_ROOT}/external/FFNx/misc/FFNx*.toml")
 file(GLOB FF7_LUTS "${FF7_ROOT}/external/FFNx/misc/glut_*.png")

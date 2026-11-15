@@ -1,5 +1,5 @@
 // make_icon_mac.swift - draws the GJ Materia icon (1024x1024 PNG): a red Meteor hanging in a dark
-// sky, a three-barrelled revolver across it (Vincent's colours: gunmetal and gold) with Good JOE's logo on
+// sky, a three-barrelled revolver across it (Vincent's colours: gunmetal and gold) with GJ on
 // the grip, a large "VII" behind it, and a red cloak's torn edge along the bottom. An original drawing, nothing from the
 // game. tools/make_icon_mac.sh turns it into macos/icon/AppIcon.icns.
 //   swift tools/make_icon_mac.swift out.png
@@ -173,17 +173,22 @@ for k in 0..<3 {
     ctx.addPath(rr(-132, -44 + CGFloat(k) * 34, 124, 18, 9)); ctx.setFillColor(rgb(0.08, 0.08, 0.1, 0.55)); ctx.fillPath()
 }
 ctx.addPath(cyl); ctx.setStrokeColor(goldLine); ctx.setLineWidth(7); ctx.strokePath()
-// Good JOE's GJ (macos/icon/gj-logo.png: the G and J cut from his logo) on the grip,
-// running along it, inside the grip's outline
-let logoURL = URL(fileURLWithPath: CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "macos/icon/gj-logo.png")
-if let src = CGImageSourceCreateWithURL(logoURL as CFURL, nil), let logo = CGImageSourceCreateImageAtIndex(src, 0, nil) {
+// "GJ" engraved in gold on the grip, upright on the icon
+do {
+    let f = CTFontCreateWithName("Didot-Bold" as CFString, 58, nil)
+    let l = CTLineCreateWithAttributedString(NSAttributedString(string: "GJ", attributes: [
+        NSAttributedString.Key(kCTFontAttributeName as String): f,
+        NSAttributedString.Key(kCTForegroundColorAttributeName as String): rgb(0.97, 0.8, 0.4)]))
     ctx.saveGState()
     ctx.addPath(grip); ctx.clip()
     ctx.translateBy(x: -262, y: -120)
     ctx.rotate(by: -0.38)                          // upright on the icon (the revolver is turned 0.38)
-    let lw: CGFloat = 84, lh = lw * CGFloat(logo.height) / CGFloat(logo.width)
-    ctx.setShadow(offset: CGSize(width: 0, height: -2), blur: 4, color: rgb(0, 0, 0, 0.9))
-    ctx.draw(logo, in: CGRect(x: -lw / 2, y: -lh / 2, width: lw, height: lh))
+    ctx.textPosition = .zero
+    let tb = CTLineGetImageBounds(l, ctx)
+    ctx.textPosition = CGPoint(x: -tb.width / 2 - tb.minX, y: -tb.height / 2 - tb.minY)
+    ctx.setShadow(offset: CGSize(width: 0, height: -2), blur: 3, color: rgb(0, 0, 0, 0.9))
+    ctx.setTextDrawingMode(.fill)
+    CTLineDraw(l, ctx)
     ctx.restoreGState()
 }
 ctx.restoreGState()   // the revolver's frame of reference
