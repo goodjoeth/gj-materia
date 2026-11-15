@@ -28,12 +28,31 @@ The macOS port of [FF7Recomp](https://github.com/bhuiyah/ff7-recomp-android).
 - Report a problem: one .zip with the logs, settings and mod list (no game files, no Steam
   sign-in), to attach to a bug report.
 
+## First: your game files
+
+You need FINAL FANTASY VII **bought on Steam** (the release sold today). Its files are the Windows
+version; get them onto the Mac one of these ways:
+
+- **A Windows PC:** Steam > right-click the game > Manage > Browse local files, and copy the
+  whole `FINAL FANTASY VII Steam Edition` folder (about 3.5 GB) to the Mac (Downloads or an
+  external drive is fine).
+- **CrossOver or Whisky on the Mac:** install Windows Steam in a bottle, then FF7.
+- **steamcmd on the Mac** (Valve's command-line Steam; it asks for your password and Steam Guard
+  code in the Terminal):
+  ```bash
+  mkdir -p ~/steamcmd && cd ~/steamcmd
+  curl -sqL "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_osx.tar.gz" | tar zxf -
+  ./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir ~/FF7 +login YOUR_STEAM_LOGIN +app_update 3837340 validate +quit
+  ```
+
+The build script and the launcher find the folder by themselves in all of these places (and on
+external drives); you can also point them at it.
+
 ## Build
 
 Needs macOS 13 or later, about 15 GB free and 20-30 minutes the first time.
 
-1. Install FINAL FANTASY VII from Steam (on a PC or with Steam on the Mac) and copy its folder,
-   `FINAL FANTASY VII Steam Edition` (the one with `ff7` inside), to the Mac.
+1. Get your game files (above).
 2. Install the tools:
    ```bash
    xcode-select --install
@@ -45,10 +64,10 @@ Needs macOS 13 or later, about 15 GB free and 20-30 minutes the first time.
    ```bash
    git clone -b macos <this repository> ff7recomp-mac
    cd ff7recomp-mac
-   bash tools/build_mac.sh "/path/to/FINAL FANTASY VII Steam Edition"
+   bash tools/build_mac.sh            # finds the game; or pass its folder
    ```
-4. Open `build/macos/FF7Recomp.app`. On the Play page, **Import from your FF7 folder** (once:
-   the game files are copied into the app's folder), then **Play**.
+4. Open `build/macos/FF7Recomp.app`. On the Play page, **Find FF7 on this Mac** and **Import**
+   (once: the game files are copied into the app's folder), then **Play**.
 
 Keep the source folder: **My mods > Make mods faster** re-lifts the enabled mods' code patches
 from it (about 5-10 minutes) so they run natively.
@@ -78,12 +97,20 @@ FINAL FANTASY VII (เวอร์ชัน Steam) เป็นแอป Mac แ
 - คีย์บอร์ดและจอย Xbox / PlayStation / MFi กดปุ่มจอยใน launcher จะเข้าโหมดทีวี (ใช้จอยล้วน) กด Select+Start ค้าง 2 วินาที (หรือ Cmd+L) ในเกมเพื่อกลับ launcher
 - ปุ่มรายงานปัญหา: รวม log ตั้งค่า และรายการม็อดเป็นไฟล์ .zip เดียว (ไม่มีไฟล์เกมและข้อมูลบัญชี Steam)
 
+### ขั้นแรก: ไฟล์เกมของคุณ (ต้องทำก่อน)
+ต้องซื้อ FINAL FANTASY VII **บน Steam** (เวอร์ชันที่ขายปัจจุบัน) ไฟล์เกมเป็นเวอร์ชัน Windows เอามาไว้ใน Mac ได้ 3 วิธี:
+- **มีคอม Windows:** ใน Steam คลิกขวาที่เกม → Manage → Browse local files → ก๊อปโฟลเดอร์ `FINAL FANTASY VII Steam Edition` ทั้งโฟลเดอร์ (~3.5 GB) มาไว้ใน Mac
+- **CrossOver หรือ Whisky บน Mac:** ติดตั้ง Steam เวอร์ชัน Windows ใน bottle แล้วติดตั้ง FF7
+- **steamcmd บน Mac:** ใช้คำสั่งในส่วนภาษาอังกฤษด้านบน (Terminal จะถามรหัสผ่านและรหัส Steam Guard)
+
+สคริปต์ build และ launcher จะค้นหาโฟลเดอร์เกมเองทุกที่ข้างบน รวมถึงไดรฟ์ภายนอก
+
 ### วิธี build
 ต้องใช้ macOS 13 ขึ้นไป พื้นที่ว่าง ~15 GB ครั้งแรกใช้เวลา 20–30 นาที
 
-1. ติดตั้ง FINAL FANTASY VII จาก Steam แล้วก๊อปโฟลเดอร์ `FINAL FANTASY VII Steam Edition` (ที่มีโฟลเดอร์ `ff7` ข้างใน) มาไว้ใน Mac
+1. เตรียมไฟล์เกม (ขั้นแรกด้านบน)
 2. ติดตั้งเครื่องมือ (คำสั่งในส่วนภาษาอังกฤษด้านบน)
-3. โหลดซอร์สแล้วรัน `bash tools/build_mac.sh "/path/to/FINAL FANTASY VII Steam Edition"`
-4. เปิด `build/macos/FF7Recomp.app` → หน้าเล่น → **นำเข้าจากโฟลเดอร์ FF7** (ครั้งเดียว) → **เล่น**
+3. โหลดซอร์สแล้วรัน `bash tools/build_mac.sh` (ค้นหาเกมเอง หรือใส่ path ของโฟลเดอร์เกมต่อท้าย)
+4. เปิด `build/macos/FF7Recomp.app` → หน้าเล่น → **ค้นหา FF7 ในเครื่อง** → **นำเข้า** (ครั้งเดียว) → **เล่น**
 
 เก็บโฟลเดอร์ซอร์สไว้ด้วย: ปุ่ม **ม็อดของฉัน → ทำให้ม็อดเร็วขึ้น** จะใช้มัน lift โค้ดของม็อดให้รันแบบ native

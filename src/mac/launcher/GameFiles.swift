@@ -14,7 +14,7 @@ final class GameFiles: ObservableObject {
     @Published var log: [String] = []
 
     static var bundled: URL? { Bundle.main.resourceURL?.appendingPathComponent("ffnx") }
-    static var expectedSHA1: String? {
+    nonisolated static var expectedSHA1: String? {
         (try? String(contentsOf: Bundle.main.resourceURL!.appendingPathComponent("ff7_en.sha1"), encoding: .utf8))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -31,7 +31,7 @@ final class GameFiles: ObservableObject {
         return Self.sha1(d) == want
     }
 
-    static func sha1(_ d: Data) -> String { Insecure.SHA1.hash(data: d).map { String(format: "%02x", $0) }.joined() }
+    nonisolated static func sha1(_ d: Data) -> String { Insecure.SHA1.hash(data: d).map { String(format: "%02x", $0) }.joined() }
 
     /// FFNx's run-time files from the app into the game folder (at each launch: a rebuilt app's
     /// shaders replace the old ones). FFNx.toml stays the launcher's; the default is the template.
@@ -103,6 +103,76 @@ final class GameFiles: ObservableObject {
         Self.installRuntime()
         message = "นำเข้าไฟล์เกมแล้ว (เก็บไว้ในเครื่องนี้ ไม่ขึ้นกับโฟลเดอร์ต้นทางแล้ว)"
         objectWillChange.send()
+    }
+
+    // MARK: finding FF7 on this Mac
+
+    struct Found: Identifiable, Hashable { let url: URL; let matches: Bool?; var id: String { url.path } }
+    @Published var found: [Found] = []
+    @Published var searching = false
+
+    /// An install folder (the one with ff7/ inside), or nil.
+    nonisolated static func installRoot(_ u: URL) -> URL? {
+        let fm = FileManager.default
+        for r in [u, u.appendingPathComponent("FINAL FANTASY VII Steam Edition"), u.appendingPathComponent("FINAL FANTASY VII")]
+            where fm.fileExists(atPath: r.appendingPathComponent("ff7/resources/ff7_1.02/ff7_en").path)
+            && fm.fileExists(atPath: r.appendingPathComponent("ff7/workingdir/data").path) { return r }
+        return nil
+    }
+
+    /// Where FF7's Steam folder usually ends up on a Mac: Steam / steamcmd's library, Windows
+    /// Steam inside CrossOver or Whisky, a copy in the home folders or on an external drive; then
+    /// Spotlight for the exe itself.
+    nonisolated static func search() -> [URL] {
+        let fm = FileManager.default
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        var roots: [URL] = []
+        let steamLibs = ["Library/Application Support/Steam/steamapps/common", "Library/Application Support/Steam/SteamApps/common"]
+        for l in steamLibs { roots.append(home.appendingPathComponent(l)) }
+        func bottles(_ base: URL) -> [URL] {
+            ((try? fm.contentsOfDirectory(at: base, includingPropertiesForKeys: nil)) ?? []).flatMap { b in
+                ["Program Files (x86)", "Program Files"].map { b.appendingPathComponent("drive_c/\($0)/Steam/steamapps/common") }
+            }
+        }
+        roots += bottles(home.appendingPathComponent("Library/Application Support/CrossOver/Bottles"))
+        roots += bottles(home.appendingPathComponent("Library/Containers/com.isaacmarovitz.Whisky/Bottles"))
+        for d in ["FF7", "Games", "Downloads", "Desktop", "Documents", ""] { roots.append(home.appendingPathComponent(d)) }
+        for v in (try? fm.contentsOfDirectory(at: URL(fileURLWithPath: "/Volumes"), includingPropertiesForKeys: nil)) ?? [] {
+            roots.append(v)
+            for sub in (try? fm.contentsOfDirectory(at: v, includingPropertiesForKeys: [.isDirectoryKey])) ?? [] { roots.append(sub) }
+        }
+        var out: [URL] = []
+        func add(_ u: URL) { if let r = installRoot(u), !out.contains(where: { $0.standardizedFileURL == r.standardizedFileURL }) { out.append(r) } }
+        for r in roots {
+            add(r)
+            for c in (try? fm.contentsOfDirectory(at: r, includingPropertiesForKeys: nil)) ?? []
+                where c.lastPathComponent.localizedCaseInsensitiveContains("final fantasy vii") || c.lastPathComponent.lowercased().hasPrefix("ff7") { add(c) }
+        }
+        #if os(macOS)
+        let p = Process(), pipe = Pipe()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
+        p.arguments = ["kMDItemFSName == 'ff7_en'"]
+        p.standardOutput = pipe; p.standardError = FileHandle.nullDevice
+        if (try? p.run()) != nil {
+            let d = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+            for line in String(decoding: d, as: UTF8.self).split(separator: "\n") where line.hasSuffix("/ff7/resources/ff7_1.02/ff7_en") {
+                add(URL(fileURLWithPath: String(line)).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent())
+            }
+        }
+        #endif
+        return out.filter { !$0.path.hasPrefix(Paths.base.path) }
+    }
+
+    func findGame() async {
+        searching = true; defer { searching = false }
+        let want = Self.expectedSHA1
+        found = await Task.detached { () -> [Found] in
+            Self.search().map { r in
+                let d = try? Data(contentsOf: r.appendingPathComponent("ff7/resources/ff7_1.02/ff7_en"))
+                return Found(url: r, matches: want == nil || d == nil ? nil : Self.sha1(d!) == want)
+            }
+        }.value
+        if found.isEmpty { message = "ไม่พบ FINAL FANTASY VII ในเครื่องนี้ ดู “วิธีได้ไฟล์เกม” ด้านล่าง" }
     }
 
     #if os(macOS)

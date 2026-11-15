@@ -207,28 +207,100 @@ struct PlayView: View {
 struct GameFilesBox: View {
     @ObservedObject var files: GameFiles
     @State private var picking = false
+    @State private var showGuide = false
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             if !Paths.gameReady {
-                Text("ยังไม่มีไฟล์เกม: เลือกโฟลเดอร์ FINAL FANTASY VII ของคุณ (เวอร์ชัน Steam)").foregroundStyle(.orange)
+                Text("ยังไม่มีไฟล์เกม: ต้องมี FINAL FANTASY VII เวอร์ชัน Steam ของคุณเอง").font(.headline).foregroundStyle(.orange)
             } else if !files.exeMatches {
                 Text("ไฟล์เกมในเครื่องไม่ตรงกับที่แอปนี้ถูก build มา").foregroundStyle(.orange)
             } else if let l = files.dataLinkedTo {
-                Text("ข้อมูลเกมยังลิงก์ไปที่ \(l)\nถ้าย้ายหรือลบโฟลเดอร์นั้นเกมจะเปิดไม่ได้ (ก๊อปมาเก็บในเครื่องได้ ใช้พื้นที่ ~3.5 GB)")
+                Text("ข้อมูลเกมยังลิงก์ไปที่ \(l)\nถ้าย้ายหรือลบโฟลเดอร์นั้นเกมจะเปิดไม่ได้ (ก๊อปมาเก็บในเครื่องได้)")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             if let b = files.busy {
                 ProgressView(value: files.progress) { Text(b).font(.caption) }.frame(width: 360)
             } else {
-                Button { picking = true } label: { Label("นำเข้าจากโฟลเดอร์ FF7…", systemImage: "folder") }
+                HStack {
+                    Button { Task { await files.findGame() } } label: { Label("ค้นหา FF7 ในเครื่อง", systemImage: "magnifyingglass") }
+                        .buttonStyle(.borderedProminent).disabled(files.searching)
+                    Button { picking = true } label: { Label("เลือกโฟลเดอร์เอง…", systemImage: "folder") }
+                    Button { showGuide = true } label: { Label("วิธีได้ไฟล์เกม", systemImage: "questionmark.circle") }
+                }
+                if files.searching { ProgressView().controlSize(.small) }
+                ForEach(files.found) { f in
+                    HStack {
+                        Image(systemName: f.matches == false ? "exclamationmark.triangle" : "checkmark.seal").foregroundStyle(f.matches == false ? .orange : .green)
+                        Text(f.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")).font(.callout).lineLimit(1).truncationMode(.middle)
+                        Spacer()
+                        if f.matches == false { Text("เวอร์ชันไม่ตรงกับแอป").font(.caption).foregroundStyle(.orange) }
+                        else { Button("นำเข้า") { Task { await files.importGame(from: f.url) } } }
+                    }
+                    .frame(maxWidth: 560)
+                }
             }
-            if let m = files.message { Text(m).font(.caption).foregroundStyle(.secondary) }
+            if let m = files.message { Text(m).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center) }
         }
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { r in
             guard let u = try? r.get() else { return }
             let ok = u.startAccessingSecurityScopedResource()
             Task { await files.importGame(from: u); if ok { u.stopAccessingSecurityScopedResource() } }
         }
+        .sheet(isPresented: $showGuide) { GameGuideView { showGuide = false } }
+    }
+}
+
+/// How to get the game's files onto this Mac: they must come from the player's own Steam copy.
+struct GameGuideView: View {
+    let close: () -> Void
+    let steamcmd = """
+    mkdir -p ~/steamcmd && cd ~/steamcmd
+    curl -sqL "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_osx.tar.gz" | tar zxf -
+    ./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir ~/FF7 +login ชื่อบัญชีSteam +app_update 3837340 validate +quit
+    """
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("วิธีได้ไฟล์เกม (ต้องทำก่อนเล่น)").font(.title2.bold())
+                Text("แอปนี้ไม่มีไฟล์เกม ต้องใช้ FINAL FANTASY VII ที่คุณซื้อบน Steam เท่านั้น (เวอร์ชันที่ขายอยู่ปัจจุบัน) ไฟล์เกมที่ใช้คือเวอร์ชัน Windows")
+                step("1", "ซื้อ FINAL FANTASY VII บน Steam", "ใช้บัญชี Steam ของคุณเอง เวอร์ชันอื่น (เช่น 7th Heaven 1998, GOG, App Store, PlayStation) ยังใช้ไม่ได้")
+                step("2", "โหลดไฟล์เกม เลือกวิธีใดวิธีหนึ่ง", nil)
+                VStack(alignment: .leading, spacing: 10) {
+                    option("ก. มีคอม Windows", "ติดตั้งเกมใน Steam → คลิกขวาที่เกม → Manage → Browse local files → ก๊อปโฟลเดอร์ “FINAL FANTASY VII Steam Edition” ทั้งโฟลเดอร์ (ประมาณ 3.5 GB) มาไว้ใน Mac ผ่านไดรฟ์ภายนอกหรือแชร์ไฟล์ จะวางไว้ที่ Downloads หรือในไดรฟ์ภายนอกก็ได้")
+                    option("ข. บน Mac ด้วย CrossOver หรือ Whisky", "ติดตั้ง Steam เวอร์ชัน Windows ใน bottle แล้วติดตั้ง FINAL FANTASY VII ตามปกติ ไม่ต้องเปิดเล่น แค่ให้โหลดเสร็จ")
+                    VStack(alignment: .leading, spacing: 6) {
+                        option("ค. บน Mac ด้วย steamcmd (เครื่องมือของ Valve ใน Terminal)", "เปิด Terminal แล้ววางคำสั่งนี้ (เปลี่ยน ชื่อบัญชีSteam เป็นชื่อล็อกอินของคุณ) จะถามรหัสผ่านและรหัส Steam Guard ใน Terminal ไฟล์เกมจะไปอยู่ที่ ~/FF7")
+                        Text(steamcmd).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+                            .padding(8).frame(maxWidth: .infinity, alignment: .leading).background(RoundedRectangle(cornerRadius: 6).fill(.quaternary))
+                        Button("ก๊อปคำสั่ง") {
+                            #if os(macOS)
+                            NSPasteboard.general.clearContents(); NSPasteboard.general.setString(steamcmd, forType: .string)
+                            #endif
+                        }
+                    }
+                }
+                .padding(.leading, 34)
+                step("3", "กด “ค้นหา FF7 ในเครื่อง” แล้วกด “นำเข้า”", "แอปจะค้นใน Steam, CrossOver, Whisky, ~/FF7, Downloads, Desktop, Documents และไดรฟ์ภายนอกที่เสียบอยู่ (macOS อาจถามสิทธิ์เข้าถึงโฟลเดอร์ ให้กดอนุญาต) ไฟล์จะถูกก๊อปมาเก็บในแอป หลังนำเข้าแล้วลบโฟลเดอร์ต้นทางได้")
+                Divider()
+                Text("ห้ามแชร์ไฟล์เกมหรือแอปที่ build แล้วให้คนอื่น ทุกคนต้องใช้เกมที่ซื้อเอง").font(.callout).foregroundStyle(.secondary)
+                HStack { Spacer(); Button("ปิด", action: close).keyboardShortcut(.defaultAction) }
+            }
+            .padding(24)
+        }
+        .frame(width: 700, height: 640)
+    }
+
+    func step(_ n: String, _ title: String, _ detail: String?) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text(n).font(.headline).frame(width: 22, height: 22).background(Circle().fill(.blue)).foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline)
+                if let d = detail { Text(d).foregroundStyle(.secondary) }
+            }
+        }
+    }
+    func option(_ title: String, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) { Text(title).fontWeight(.semibold); Text(detail).foregroundStyle(.secondary).font(.callout) }
     }
 }
 
@@ -268,6 +340,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("ไฟล์เกม") { GameFilesBox(files: state.gameFiles).frame(maxWidth: .infinity) }
             Section {
                 Picker("อัตราส่วนจอ", selection: $state.settings.aspect) {
                     Text("4:3 (ต้นฉบับ)").tag(0)
