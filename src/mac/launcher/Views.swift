@@ -988,6 +988,8 @@ struct ControlsView: View {
         ("บันทึก / โหลด save state", "Tab+Q / Tab+W", "Select+L1 / Select+R1"),
         ("เปลี่ยนช่อง save state", "Tab+← / Tab+→", "Select+← / Select+→"),
         ("กลับไปที่ launcher", "Cmd+L", "Select+Start ค้าง 2 วินาที"),
+        ("ดู achievement (แผงทับเกม)", "F1", "Select+△"),
+        ("ดู achievement (หน้าต่างแยก)", "Cmd+Shift+A", "-"),
         ("เต็มจอ", "Cmd+F", ""),
         ("ออกจากเกม", "Cmd+Q", ""),
     ]

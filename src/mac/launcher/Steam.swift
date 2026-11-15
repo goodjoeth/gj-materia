@@ -333,10 +333,10 @@ final class SteamLink: ObservableObject {
     @Published var achievements: [(name: String, display: String, got: Bool)] = []
     private var signInTask: Task<Void, Never>?
 
-    static var dir: URL { Paths.base.appendingPathComponent("steam") }
-    static var state: URL { dir.appendingPathComponent("state.txt") }
-    static var pending: URL { dir.appendingPathComponent("pending.txt") }
-    static var sending: URL { dir.appendingPathComponent("pending.sending") }
+    nonisolated static var dir: URL { Paths.base.appendingPathComponent("steam") }
+    nonisolated static var state: URL { dir.appendingPathComponent("state.txt") }
+    nonisolated static var pending: URL { dir.appendingPathComponent("pending.txt") }
+    nonisolated static var sending: URL { dir.appendingPathComponent("pending.sending") }
     static var infoURL: URL { dir.appendingPathComponent("account.json") }
 
     init() {
@@ -354,15 +354,20 @@ final class SteamLink: ObservableObject {
         try? JSONEncoder().encode(info).write(to: Self.infoURL, options: .atomic)
     }
 
-    func loadState() {
-        achievements = Self.lines(Self.state).compactMap { l in
+    func loadState() { achievements = Self.readState() }
+
+    /// steam/state.txt: every FF7 achievement and whether this account has it (plus the ones the
+    /// game unlocked that are still waiting to be sent).
+    nonisolated static func readState() -> [(name: String, display: String, got: Bool)] {
+        let waiting = Set((lines(pending) + lines(sending)).compactMap { $0.split(separator: "\t").first.map(String.init) })
+        return lines(state).compactMap { l in
             let f = l.split(separator: " ", maxSplits: 3).map(String.init)
             guard f.count >= 3, f[0] == "ach" else { return nil }
-            return (f[1], f.count > 3 ? f[3] : f[1], f[2] == "1")
+            return (f[1], f.count > 3 ? f[3] : f[1], f[2] == "1" || waiting.contains(f[1]))
         }
     }
 
-    static func lines(_ u: URL) -> [String] {
+    nonisolated static func lines(_ u: URL) -> [String] {
         ((try? String(contentsOf: u, encoding: .utf8)) ?? "").split(separator: "\n").map(String.init).filter { !$0.isEmpty }
     }
 

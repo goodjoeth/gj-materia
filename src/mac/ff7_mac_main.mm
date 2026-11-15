@@ -231,6 +231,18 @@ void request_back_to_launcher() {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ relaunch_and_quit(); });
 }
 
+// The achievements panel over the game (src/mac/launcher/GameOverlay.swift): F1 or Select+Triangle
+// opens and closes it; while it is open the game gets no input, up / down scroll it and
+// cross / circle close it.
+extern "C" void ff7_overlay_set_achievements(int open);
+extern "C" void ff7_overlay_scroll(int by);
+extern "C" void ff7_achievements_window(void);
+static std::atomic<bool> g_ach_open{false};
+void set_achievements_panel(bool open) {
+    g_ach_open.store(open);
+    dispatch_async(dispatch_get_main_queue(), ^{ ff7_overlay_set_achievements(open ? 1 : 0); });
+}
+
 extern "C" int ff7_platform_pad_state(unsigned index, ff7_pad_state *out) {
     if (index != 0) return 0;
     static bool quit_sent;
@@ -273,6 +285,25 @@ extern "C" int ff7_platform_pad_state(unsigned index, ff7_pad_state *out) {
             break;
         }
     }
+    // the achievements panel
+    static unsigned short prev, held_at_close;
+    const unsigned short now_b = out->buttons, pressed = now_b & ~prev;
+    prev = now_b;
+    held_at_close &= now_b;                               // released since the panel closed
+    if ((now_b & (XI_BACK | XI_Y)) == (XI_BACK | XI_Y) && (pressed & (XI_BACK | XI_Y))) {
+        set_achievements_panel(!g_ach_open.load());
+        if (!g_ach_open.load()) held_at_close = now_b;
+    } else if (g_ach_open.load()) {
+        if (pressed & XI_UP) dispatch_async(dispatch_get_main_queue(), ^{ ff7_overlay_scroll(-1); });
+        if (pressed & XI_DOWN) dispatch_async(dispatch_get_main_queue(), ^{ ff7_overlay_scroll(1); });
+        if (pressed & (XI_A | XI_B)) { set_achievements_panel(false); held_at_close = now_b; }
+    }
+    if (g_ach_open.load()) {
+        std::memset(out, 0, sizeof *out);                 // the game waits
+        return 1;
+    }
+    out->buttons &= (unsigned short)~held_at_close;       // the button that closed it is not a game press
+
     // Select+Start held 2 s: back to the launcher
     const auto now = std::chrono::steady_clock::now();
     if ((out->buttons & (XI_BACK | XI_START)) == (XI_BACK | XI_START)) {
@@ -364,6 +395,8 @@ extern "C" int ff7_platform_pad_buttons(void) { return g_key_buttons.load(); }
 }
 - (void)keyDown:(NSEvent *)e {
     if (e.modifierFlags & NSEventModifierFlagCommand) { [super keyDown:e]; return; }
+    if (e.keyCode == 122 && !e.isARepeat) { set_achievements_panel(!g_ach_open.load()); return; }   // F1
+    if (e.keyCode == 53 && g_ach_open.load()) { set_achievements_panel(false); return; }            // Escape
     [self setKey:e down:YES];
 }
 - (void)keyUp:(NSEvent *)e { [self setKey:e down:NO]; }
@@ -473,6 +506,7 @@ extern "C" void ff7_overlay_attach(void *view);   // src/mac/launcher/GameOverla
     return NO;
 }
 - (void)backToLauncher:(id)sender { if (self.window) request_back_to_launcher(); }
+- (void)showAchievements:(id)sender { ff7_achievements_window(); }
 - (void)quitApp:(id)sender { g_relaunch.store(false); if (self.window) ff7_launcher_game_exited(); [NSApp terminate:nil]; }
 @end
 
@@ -483,6 +517,7 @@ static void build_menu(void) {
     NSMenu *app = [NSMenu new];
     [app addItemWithTitle:@"Toggle Full Screen" action:@selector(toggleFullScreen:) keyEquivalent:@"f"];
     [app addItem:[NSMenuItem separatorItem]];
+    [app addItemWithTitle:@"Achievements…" action:@selector(showAchievements:) keyEquivalent:@"A"];   // Cmd+Shift+A
     [app addItemWithTitle:@"Back to Launcher" action:@selector(backToLauncher:) keyEquivalent:@"l"];
     [app addItemWithTitle:@"Quit FF7Recomp" action:@selector(quitApp:) keyEquivalent:@"q"];
     appItem.submenu = app;

@@ -16,6 +16,15 @@ final class OverlayModel: ObservableObject {
     @Published var noBattles = false
     @Published var battlePlus = false
     @Published var banner: (title: String, points: Int)?
+    // the achievements panel (F1 / Select+Triangle): both sets, scrolled with up / down
+    @Published var panelOpen = false
+    @Published var scroll = 0
+    @Published var local: [Achievement] = []
+    @Published var steam: [(name: String, display: String, got: Bool)] = []
+    func reloadLists() {
+        local = Achievements.load()
+        steam = SteamLink.readState()
+    }
     private var achSeq: Int64 = -1
     private var timer: Timer?
 
@@ -37,6 +46,7 @@ final class OverlayModel: ObservableObject {
         let seq = (j["achseq"] as? NSNumber)?.int64Value ?? 0
         if achSeq >= 0, seq != achSeq, seq > 0 {
             banner = (j["ach"] as? String ?? "", j["achpts"] as? Int ?? 0)
+            if panelOpen { reloadLists() }
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.banner = nil }
         }
         achSeq = seq
@@ -93,8 +103,10 @@ struct GameOverlayView: View {
                 }
             }
             .frame(width: g.size.width, height: g.size.height, alignment: .top)
+            if model.panelOpen { AchievementsPanel(model: model, scale: s).frame(width: g.size.width, height: g.size.height).transition(.opacity) }
         }
         .allowsHitTesting(false)
+        .animation(.easeOut(duration: 0.15), value: model.panelOpen)
         .animation(.easeInOut(duration: 0.25), value: model.banner?.title)
     }
 
@@ -106,8 +118,99 @@ struct GameOverlayView: View {
     }
 }
 
+/// The achievements panel over the game: progress, then every achievement (Steam's first when
+/// signed in), the unlocked ones first; a window of rows moved with up / down.
+struct AchievementsPanel: View {
+    @ObservedObject var model: OverlayModel
+    let scale: CGFloat
+    struct Row: Identifiable { let id: String; let title: String; let detail: String; let got: Bool; let points: Int? }
+
+    var rows: [Row] {
+        var r: [Row] = []
+        for a in model.steam.sorted(by: { ($0.got ? 0 : 1, $0.display) < ($1.got ? 0 : 1, $1.display) }) {
+            r.append(Row(id: "s" + a.name, title: a.display, detail: "Steam", got: a.got, points: nil))
+        }
+        for a in model.local.sorted(by: { ($0.unlocked != nil ? 0 : 1, $0.id) < ($1.unlocked != nil ? 0 : 1, $1.id) }) {
+            r.append(Row(id: "l\(a.id)", title: a.title, detail: a.description, got: a.unlocked != nil, points: a.points))
+        }
+        return r
+    }
+
+    var body: some View {
+        let s = max(scale, 0.55)
+        let all = rows
+        let visible = 9
+        let start = min(max(0, model.scroll), max(0, all.count - visible))
+        VStack(alignment: .leading, spacing: 14 * s) {
+            HStack(alignment: .firstTextBaseline) {
+                Image(systemName: "trophy.fill").foregroundStyle(Color(red: 0.91, green: 0.76, blue: 0.35))
+                Text("Achievements").font(.system(size: 40 * s, weight: .bold))
+                Spacer()
+                if !model.steam.isEmpty {
+                    Text("Steam \(model.steam.filter { $0.got }.count)/\(model.steam.count)").font(.system(size: 26 * s, weight: .semibold))
+                }
+                Text("ออฟไลน์ \(model.local.filter { $0.unlocked != nil }.count)/\(model.local.count) · \(model.local.filter { $0.unlocked != nil }.reduce(0) { $0 + $1.points }) แต้ม")
+                    .font(.system(size: 26 * s, weight: .semibold)).foregroundStyle(.white.opacity(0.8))
+            }
+            ForEach(all[start..<min(all.count, start + visible)]) { row in
+                HStack(spacing: 16 * s) {
+                    Image(systemName: row.got ? "trophy.fill" : "lock.fill").font(.system(size: 28 * s))
+                        .foregroundStyle(row.got ? Color(red: 0.91, green: 0.76, blue: 0.35) : .white.opacity(0.4)).frame(width: 40 * s)
+                    VStack(alignment: .leading, spacing: 2 * s) {
+                        Text(row.title).font(.system(size: 28 * s, weight: .semibold))
+                        Text(row.detail).font(.system(size: 20 * s)).foregroundStyle(.white.opacity(0.65)).lineLimit(1)
+                    }
+                    Spacer()
+                    if let p = row.points { Text("\(p)").font(.system(size: 24 * s).monospacedDigit()).foregroundStyle(.white.opacity(0.7)) }
+                }
+                .opacity(row.got ? 1 : 0.6)
+            }
+            if all.isEmpty { Text("ยังไม่มีข้อมูล achievement").font(.system(size: 26 * s)) }
+            Text("▲▼ เลื่อน   ·   F1 หรือ Select+△ หรือ × ปิด   ·   \(all.isEmpty ? 0 : start + 1)–\(min(all.count, start + visible)) จาก \(all.count)")
+                .font(.system(size: 20 * s)).foregroundStyle(.white.opacity(0.6))
+        }
+        .foregroundStyle(.white)
+        .padding(36 * s)
+        .frame(width: 1100 * s)
+        .background(RoundedRectangle(cornerRadius: 26 * s).fill(Color(red: 0.06, green: 0.08, blue: 0.16).opacity(0.94)))
+        .overlay(RoundedRectangle(cornerRadius: 26 * s).stroke(Color(red: 0.91, green: 0.76, blue: 0.35).opacity(0.8), lineWidth: 2.5 * s))
+    }
+}
+
 #if os(macOS)
 private var overlayModel: OverlayModel?
+
+/// F1 / Select+Triangle (src/mac/ff7_mac_main.mm): open or close the achievements panel.
+@_cdecl("ff7_overlay_set_achievements")
+public func ff7_overlay_set_achievements(_ open: Int32) {
+    MainActor.assumeIsolated {
+        guard let m = overlayModel else { return }
+        if open != 0 { m.reloadLists(); m.scroll = 0 }
+        m.panelOpen = open != 0
+    }
+}
+
+@_cdecl("ff7_overlay_scroll")
+public func ff7_overlay_scroll(_ by: Int32) {
+    MainActor.assumeIsolated { overlayModel?.scroll = max(0, (overlayModel?.scroll ?? 0) + Int(by)) }
+}
+
+/// The achievements in a window of their own (the app menu's Achievements…): the game keeps running.
+private var achWindow: NSWindow?
+@_cdecl("ff7_achievements_window")
+public func ff7_achievements_window() {
+    MainActor.assumeIsolated {
+        if let w = achWindow { w.makeKeyAndOrderFront(nil); return }
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 720),
+                         styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
+        w.title = "Achievements"
+        w.isReleasedWhenClosed = false
+        w.contentViewController = NSHostingController(rootView: AchievementsView(steam: SteamLink()).frame(minWidth: 520, minHeight: 500))
+        w.center()
+        w.makeKeyAndOrderFront(nil)
+        achWindow = w
+    }
+}
 
 /// Put the overlay over the game's view (src/mac/ff7_mac_main.mm, when the game window opens).
 @_cdecl("ff7_overlay_attach")
