@@ -86,3 +86,12 @@ samples were: system and FFNx functions by name, the rest as addresses for
 Scene changes used to spend most of a 100-250 ms hitch converting the game's textures and
 decoding mod PNGs (bimg's lodepng); `tools/ffnx_edit_mac.py` now gives FFNx a table-driven
 conversion and decodes PNGs with libpng. What is left is mostly reading files.
+
+### 21:9 battle windows
+
+UI mods lay the battle windows out for 16:9. Settings > Display > "แถบสถานะฉากต่อสู้ (21:9)"
+(boosters.txt `battlehud=0|1|2`) leaves the status windows where 16:9 has them (the default),
+or draws them halfway or all the way to the right edge (`tools/ffnx_edit_mac.py`, gl.cpp: the
+battle band's 2D quads right of x 320 move together; a layout with a window across x 320, such
+as the game's own, is left alone). `FF7_HEXT_WATCH=<address>` logs every hext file that writes
+that address, to find which mod owns a value.

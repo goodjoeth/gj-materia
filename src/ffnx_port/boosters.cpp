@@ -25,6 +25,9 @@ extern "C" {
 int ff7_booster_battle = 0;     // battle enhancement on
 void ff7_platform_pad_autofire(int on);   // src/android: confirm held repeats (GitHub #33)
 void ff7_rumble_set_level(int level);     // rumble.cpp: 0 off, 1 light, 2 strong
+}
+int ff7r_battle_hud;                      // FFNx gl.cpp (tools/ffnx_edit_mac.py): how far out the 21:9 battle status goes
+extern "C" {
 void ff7_rumble_frame(int mode);
 }
 
@@ -109,6 +112,8 @@ void read_defaults() {
             if (g >= 1 && g <= 100) g_ap_mult = g;
         } else if (!std::strcmp(key, "autofire")) {
             g_autofire = !std::strcmp(val, "on");
+        } else if (!std::strcmp(key, "battlehud")) {
+            ff7r_battle_hud = std::atoi(val);   // gl.cpp: 21:9 battle status windows, 0 / 1 / 2
         } else if (!std::strcmp(key, "rumble")) {
             ff7_rumble_set_level(std::atoi(val));   // Settings > Controller > Rumble
         }

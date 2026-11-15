@@ -425,6 +425,14 @@ struct SettingsView: View {
                     Text("21:9 Ultrawide").tag(4)
                     Text("ยืดเต็มหน้าต่าง").tag(1)
                 }
+                if state.settings.aspect == 4 {
+                    Picker("แถบสถานะฉากต่อสู้ (21:9)", selection: $state.settings.battleHud) {
+                        Text("ตำแหน่งแบบ 16:9 (มองง่าย)").tag(0)
+                        Text("ขยับออกครึ่งทาง").tag(1)
+                        Text("ชิดขอบจอ").tag(2)
+                    }
+                    .help("ม็อด UI จัดหน้าต่างฉากต่อสู้ไว้สำหรับ 16:9 เลือกได้ว่าจะให้แถบ HP/MP อยู่ตรงนั้น หรือขยับไปทางขอบขวาของจอ 21:9")
+                }
                 Toggle("เต็มจอเมื่อเริ่มเกม", isOn: $state.settings.fullscreen)
                 #if os(macOS)
                 Picker("จอที่ใช้เล่น", selection: $state.settings.display) {

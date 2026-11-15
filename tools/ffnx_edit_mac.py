@@ -308,6 +308,85 @@ void convert_image_data(const unsigned char *image_data, uint32_t *converted_ima
 '''))
 
 
+# 21:9 battles: the mods' battle windows are laid out for 16:9, so at 21:9 the status window
+# (party HP/MP, bars) sits 142 px in from the right edge. The launcher's setting (boosters.txt
+# battlehud) keeps it there (the default: less to look across), or moves it halfway or all the way out. Every 2D quad of the battle window band
+# (y 330 and down, as companion_render.cpp's band) that lies right of x 320 is drawn 142 px
+# further right: the whole status group moves together, while the command window and its lists
+# (which end left of 300) and anything above the band (the 3D battle, damage numbers, the
+# action name) stay. A copy of the vertices is moved, never the game's own. A layout whose
+# window spans x 320 (the game's own UI without mods) is left as it is.
+EDITS.append(('gl/gl.cpp', '#include <algorithm>\n#include <unordered_map>', '#include <algorithm>\n#include <chrono>\n#include <unordered_map>'))
+EDITS.append(('gl/gl.cpp',
+'''	// should never happen, broken 3rd-party models cause this
+	if(!count) return;
+''',
+'''	// should never happen, broken 3rd-party models cause this
+	if(!count) return;
+
+#ifdef FF7_MACOS
+	// FF7Recomp: at 21:9 the battle status windows to the right edge
+	static std::vector<struct nvertex> ff7r_moved;
+	extern bool ff7r_replaying_deferred;   // a deferred draw comes back here: moved already
+	extern int ff7r_battle_hud;            // 0 as 16:9 has it, 1 halfway, 2 at the edge (Settings, boosters.txt)
+	const float ff7r_shift = ff7r_battle_hud == 2 ? 142.0f : ff7r_battle_hud == 1 ? 71.0f : 0.0f;
+	if (!ff8 && ff7r_shift > 0 && !ff7r_replaying_deferred && aspect_ratio == AR_WIDESCREEN_21X9 && vertextype == TLVERTEX && mode == MODE_BATTLE && vertexcount && vertexcount % 4 == 0)
+	{
+		bool band = true;
+		for (uint32_t k = 0; k < vertexcount && band; k++) band = vertices[k]._.y >= 330.0f;
+		// a band window across x 320 (the game's own status window, a wide list): this layout is
+		// not split in two groups, so nothing is moved while one has been seen in the last 0.4 s
+		static std::chrono::steady_clock::time_point ff7r_whole_until;
+		const auto ff7r_now = std::chrono::steady_clock::now();
+		if (band)
+			for (uint32_t q = 0; q < vertexcount; q += 4)
+			{
+				const float x0 = std::min(std::min(vertices[q]._.x, vertices[q + 1]._.x), std::min(vertices[q + 2]._.x, vertices[q + 3]._.x));
+				const float x1 = std::max(std::max(vertices[q]._.x, vertices[q + 1]._.x), std::max(vertices[q + 2]._.x, vertices[q + 3]._.x));
+				const float y0 = std::min(std::min(vertices[q]._.y, vertices[q + 1]._.y), std::min(vertices[q + 2]._.y, vertices[q + 3]._.y));
+				const float y1 = std::max(std::max(vertices[q]._.y, vertices[q + 1]._.y), std::max(vertices[q + 2]._.y, vertices[q + 3]._.y));
+				// a line (no height; the status rows' underlines) does not count
+				if (x0 < 310.0f && x1 > 330.0f && y1 - y0 > 2.0f) ff7r_whole_until = ff7r_now + std::chrono::milliseconds(400);
+			}
+		if (ff7r_now < ff7r_whole_until) band = false;
+		bool any = false;
+		if (band)
+			for (uint32_t q = 0; q < vertexcount && !any; q += 4)
+				any = std::min(std::min(vertices[q]._.x, vertices[q + 1]._.x), std::min(vertices[q + 2]._.x, vertices[q + 3]._.x)) >= 320.0f;
+		if (any)
+		{
+			ff7r_moved.assign(vertices, vertices + vertexcount);
+			for (uint32_t q = 0; q < vertexcount; q += 4)
+				if (std::min(std::min(vertices[q]._.x, vertices[q + 1]._.x), std::min(vertices[q + 2]._.x, vertices[q + 3]._.x)) >= 320.0f)
+					for (uint32_t k = q; k < q + 4; k++) ff7r_moved[k]._.x += ff7r_shift;
+			vertices = ff7r_moved.data();
+		}
+	}
+#endif
+'''))
+
+
+EDITS.append(('gl/deferred.cpp',
+'''			gl_load_state(&deferred_draws[i].state);
+			gl_draw_indexed_primitive(deferred_draws[i].primitivetype,''',
+'''			gl_load_state(&deferred_draws[i].state);
+#ifdef FF7_MACOS
+			struct ff7r_replay { ff7r_replay() { ff7r_replaying_deferred = true; } ~ff7r_replay() { ff7r_replaying_deferred = false; } } ff7r_replay_guard;
+#endif
+			gl_draw_indexed_primitive(deferred_draws[i].primitivetype,'''))
+EDITS.append(('gl/deferred.cpp',
+'''		gl_draw_indexed_primitive(deferred_sorted_draws[next].deferred_draw.primitivetype,''',
+'''#ifdef FF7_MACOS
+		struct ff7r_replay { ff7r_replay() { ff7r_replaying_deferred = true; } ~ff7r_replay() { ff7r_replaying_deferred = false; } } ff7r_replay_guard;
+#endif
+		gl_draw_indexed_primitive(deferred_sorted_draws[next].deferred_draw.primitivetype,'''))
+EDITS.append(('gl/deferred.cpp',
+'''uint32_t gl_defer_draw(''',
+'''#ifdef FF7_MACOS
+bool ff7r_replaying_deferred;   // gl.cpp: the 21:9 battle window move is not made twice
+#endif
+uint32_t gl_defer_draw('''))
+
 def main():
     n = 0
     for name, old, new, *how in EDITS:

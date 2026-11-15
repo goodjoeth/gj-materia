@@ -332,7 +332,10 @@ extern "C" int ff7_mods_load(const char *profile_path, const char *cache_dir) {
         size_t a = s.find_first_not_of(" \t\r\n\""), b = s.find_last_not_of(" \t\r\n\"");
         return a == std::string::npos ? std::string() : s.substr(a, b - a + 1);
     };
-    if (std::FILE *tf = std::fopen(join(base, "../game/FFNx.toml").c_str(), "rb")) {
+    // the game folder's own (the process runs in it), else the one beside the mods folder
+    std::FILE *tf = std::fopen("FFNx.toml", "rb");
+    if (!tf) tf = std::fopen(join(base, "../game/FFNx.toml").c_str(), "rb");
+    if (tf) {
         char line[512];
         while (std::fgets(line, sizeof line, tf)) {
             std::string l = line;

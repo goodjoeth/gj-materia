@@ -179,6 +179,10 @@ void apply_one(const std::string &mod, const std::string &file, const std::strin
             std::vector<uint8_t> before((const uint8_t *)(uintptr_t)va, (const uint8_t *)(uintptr_t)va + n);
             std::memcpy((void *)(uintptr_t)va, b, n);
             c.writes++;
+            // FF7_HEXT_WATCH=<hex address>: which hext file writes it, and what (finding a mod's value)
+            static const uint32_t watch = getenv("FF7_HEXT_WATCH") ? (uint32_t)std::strtoul(getenv("FF7_HEXT_WATCH"), nullptr, 16) : 0;
+            if (watch && watch >= va && watch < va + n)
+                std::fprintf(stderr, "[hext] watch %08X: %s %s writes %02X %02X\n", watch, mod.c_str(), file.c_str(), b[watch - va], watch + 1 < va + n ? b[watch + 1 - va] : 0);
             if (!code) { c.data_writes++; return; }
             if (const char *why = code_status(va, before, n)) {
                 interpret_at(mod, file, va, n, why, c);
