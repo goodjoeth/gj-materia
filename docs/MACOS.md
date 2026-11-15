@@ -76,3 +76,13 @@ the same in Swift (src/mac/launcher/Steam.swift): Steam's client protocol over W
 server, QR sign-in (Authentication.BeginAuthSessionViaQR / PollAuthSessionStatus), ClientLogon with
 the refresh token (kept in the Keychain), ClientGetUserStats / ClientStoreUserStats2 with the
 schema's achievement bits. It syncs when the launcher opens and every minute while the game runs.
+
+## Finding slow frames
+
+`FF7_PERF=1` prints frames per second and the slowest frames every 10 s. `FF7_HITCH=1` samples
+the game thread's stack every millisecond and, for each frame over 40 ms, prints where those
+samples were: system and FFNx functions by name, the rest as addresses for
+`atos -o build/macos/FF7Recomp.app/Contents/MacOS/FF7Recomp -arch x86_64 <address>`.
+Scene changes used to spend most of a 100-250 ms hitch converting the game's textures and
+decoding mod PNGs (bimg's lodepng); `tools/ffnx_edit_mac.py` now gives FFNx a table-driven
+conversion and decodes PNGs with libpng. What is left is mostly reading files.

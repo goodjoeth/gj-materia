@@ -214,6 +214,100 @@ EDITS.append(('ff7/misc.cpp',
 	last_gametime = gametime;'''))
 
 
+# Scene changes (entering a battle): mod PNGs were decoded by bimg's lodepng, about twice as slow
+# as libpng (FFNx's own loadPng, already used for other PNGs): PNGs now go through libpng.
+EDITS.append(('image/image.cpp',
+'''bimg::ImageContainer *loadImageContainer(bx::AllocatorI *allocator, const char *filename, bimg::TextureFormat::Enum targetFormat)
+{
+    FILE* file = fopen(filename, "rb");''',
+'''bimg::ImageContainer *loadImageContainer(bx::AllocatorI *allocator, const char *filename, bimg::TextureFormat::Enum targetFormat)
+{
+#ifdef FF7_MACOS
+    // FF7Recomp: PNGs through libpng (faster than bimg's lodepng); anything else, or a PNG libpng
+    // cannot read, as before
+    if (const size_t n = strlen(filename); n > 4 && _stricmp(filename + n - 4, ".png") == 0)
+        if (bimg::ImageContainer *png = loadPng(allocator, filename, targetFormat)) return png;
+#endif
+    FILE* file = fopen(filename, "rb");'''))
+
+# The game's own textures, converted to 32-bit when a scene loads (the battle's models and
+# effects): per pixel, FFNx divided by each channel's maximum (16-bit) or reread the palette
+# through the format struct. Now a table: the palette once per image (256 entries), and 16-bit
+# formats through a 64K-entry table kept for the last few formats.
+EDITS.append(('common.cpp',
+'''void convert_image_data(const unsigned char *image_data, uint32_t *converted_image_data, uint32_t w, uint32_t h, struct texture_format *tex_format, uint32_t invert_alpha, uint32_t color_key, uint32_t palette_offset, uint32_t reference_alpha)
+{
+	uint32_t i, j, o = 0, c = 0;
+''',
+'''#ifdef FF7_MACOS
+static uint32_t ff7r_convert_one(uint32_t pixel, const struct texture_format *tex_format, uint32_t invert_alpha, uint32_t color_key)
+{
+	if((color_key == 1 && (pixel & ~tex_format->alpha_mask) == 0) || (color_key == 3 && pixel == 0)) return 0;
+	uint32_t color = tex_format->blue_max > 0 ? ((((pixel & tex_format->blue_mask) >> tex_format->blue_shift) * 255) / tex_format->blue_max) : 0;
+	color |= (tex_format->green_max > 0 ? ((((pixel & tex_format->green_mask) >> tex_format->green_shift) * 255) / tex_format->green_max) : 0) << 8;
+	color |= (tex_format->red_max > 0 ? ((((pixel & tex_format->red_mask) >> tex_format->red_shift) * 255) / tex_format->red_max) : 0) << 16;
+	if(invert_alpha && pixel != 0x8000) color |= (tex_format->alpha_max > 0 ? (255 - ((((pixel & tex_format->alpha_mask) >> tex_format->alpha_shift) * 255) / tex_format->alpha_max)) : 255) << 24;
+	else color |= (tex_format->alpha_max > 0 ? ((((pixel & tex_format->alpha_mask) >> tex_format->alpha_shift) * 255) / tex_format->alpha_max) : 255) << 24;
+	return color;
+}
+
+// FF7Recomp: the fast paths (same results as the loops below)
+static bool ff7r_convert_fast(const unsigned char *image_data, uint32_t *out, uint32_t n, struct texture_format *tex_format, uint32_t invert_alpha, uint32_t color_key, uint32_t palette_offset, uint32_t reference_alpha)
+{
+	if(tex_format->bytesperpixel == 1 && tex_format->use_palette)
+	{
+		uint8_t top = 0;
+		for(uint32_t k = 0; k < n; k++) if(image_data[k] > top) top = image_data[k];
+		if(top > tex_format->palette_size) return false;   // the loop below reports it
+		uint32_t lut[256];
+		const uint32_t *pal = tex_format->palette_data;
+		for(uint32_t k = 0; k <= top; k++)
+		{
+			if(color_key && k == 0) { lut[k] = 0; continue; }
+			uint32_t color = pal[palette_offset + k];
+			if(BGRA_A(color) == 0xFE) color = (color & 0xFFFFFF) | reference_alpha;
+			lut[k] = color;
+		}
+		for(uint32_t k = 0; k < n; k++) out[k] = lut[image_data[k]];
+		return true;
+	}
+	if(tex_format->bytesperpixel == 2 && !tex_format->use_palette)
+	{
+		struct cached { uint32_t key[14]; uint32_t *lut; };
+		static cached cache[6];
+		static int next;
+		const uint32_t key[14] = { tex_format->blue_mask, tex_format->green_mask, tex_format->red_mask, tex_format->alpha_mask,
+			tex_format->blue_shift, tex_format->green_shift, tex_format->red_shift, tex_format->alpha_shift,
+			tex_format->blue_max, tex_format->green_max, tex_format->red_max, tex_format->alpha_max, invert_alpha, color_key };
+		uint32_t *lut = nullptr;
+		for(auto &e : cache) if(e.lut && memcmp(e.key, key, sizeof key) == 0) { lut = e.lut; break; }
+		if(!lut)
+		{
+			if(n < 16384) return false;   // a small image: the table would cost more than it saves
+			cached &e = cache[next]; next = (next + 1) % 6;
+			if(!e.lut) e.lut = (uint32_t *)malloc(65536 * sizeof(uint32_t));
+			if(!e.lut) return false;
+			for(uint32_t p = 0; p < 65536; p++) e.lut[p] = ff7r_convert_one(p, tex_format, invert_alpha, color_key);
+			memcpy(e.key, key, sizeof key);
+			lut = e.lut;
+		}
+		const uint16_t *src = (const uint16_t *)image_data;
+		for(uint32_t k = 0; k < n; k++) out[k] = lut[src[k]];
+		return true;
+	}
+	return false;
+}
+#endif
+
+void convert_image_data(const unsigned char *image_data, uint32_t *converted_image_data, uint32_t w, uint32_t h, struct texture_format *tex_format, uint32_t invert_alpha, uint32_t color_key, uint32_t palette_offset, uint32_t reference_alpha)
+{
+	uint32_t i, j, o = 0, c = 0;
+#ifdef FF7_MACOS
+	if(!ff8 && ff7r_convert_fast(image_data, converted_image_data, w * h, tex_format, invert_alpha, color_key, palette_offset, reference_alpha)) return;
+#endif
+'''))
+
+
 def main():
     n = 0
     for name, old, new, *how in EDITS:

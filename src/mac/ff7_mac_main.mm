@@ -199,6 +199,102 @@ void ff7r_sleep_us(long long us) {
     mach_wait_until(mach_absolute_time() + ticks);
 }
 
+// FF7_HITCH=1: what the game thread does in a slow frame. A thread samples the game thread's
+// stack (frame pointers) every millisecond; a frame over 40 ms prints its samples, grouped by
+// the function each one is in and by the deepest named caller from FFNx / the HLE / the
+// system (the lifted game's functions have no names here), so a hitch shows what it waited on.
+#include <mach/mach.h>
+#include <dlfcn.h>
+static mach_port_t g_game_mach;
+struct hitch_sample { uint64_t t; uintptr_t pc[16]; int n; };
+static hitch_sample g_hs[4096];
+static std::atomic<unsigned> g_hs_n{0};
+static std::atomic<uint64_t> g_hitch_from{0}, g_hitch_to{0};
+static uint64_t now_ticks() { return mach_absolute_time(); }
+static void *hitch_thread(void *) {
+    for (;;) {
+        ff7r_sleep_us(1000);
+        if (!g_game_mach) continue;
+        // a slow frame to report
+        if (uint64_t to = g_hitch_to.exchange(0)) {
+            const uint64_t from = g_hitch_from.load();
+            std::vector<std::pair<std::string, int>> leaf, mid;
+            auto add = [](std::vector<std::pair<std::string, int>> &v, const std::string &k) {
+                for (auto &e : v) if (e.first == k) { e.second++; return; }
+                v.push_back({k, 1});
+            };
+            int total = 0;
+            const unsigned end = g_hs_n.load();
+            for (unsigned i = end > 4096 ? end - 4096 : 0; i < end; i++) {
+                const hitch_sample &h = g_hs[i % 4096];
+                if (h.t < from || h.t > to) continue;
+                total++;
+                Dl_info di;
+                // the leaf as an offset in the app's binary (atos -o FF7Recomp -l 0x100000000 <addr>),
+                // dladdr only knows exported names
+                char top[32] = "?";
+                if (h.n && dladdr((void *)h.pc[0], &di) && di.dli_fname && std::strstr(di.dli_fname, "FF7Recomp"))
+                    std::snprintf(top, sizeof top, "0x%llx", (unsigned long long)(h.pc[0] - (uintptr_t)di.dli_fbase + 0x100000000ull) & ~0xFFull);
+                else if (h.n && dladdr((void *)h.pc[0], &di) && di.dli_sname) std::snprintf(top, sizeof top, "%.31s", di.dli_sname);
+                add(leaf, top);
+                // the first named frame that is ours (FFNx, HLE) rather than the system's
+                std::string ours = "?";
+                for (int k = 0; k < h.n; k++) {
+                    if (!dladdr((void *)h.pc[k], &di) || !di.dli_sname || !di.dli_fname) continue;
+                    if (std::strstr(di.dli_fname, "FF7Recomp")) { ours = di.dli_sname; if (ours.rfind("sub_", 0) != 0 && ours.rfind("f_", 0) != 0) break; }
+                }
+                add(mid, ours);
+            }
+            auto top = [](std::vector<std::pair<std::string, int>> &v) {
+                std::sort(v.begin(), v.end(), [](auto &a, auto &b) { return a.second > b.second; });
+                std::string o;
+                for (size_t k = 0; k < v.size() && k < 6; k++) o += " " + v[k].first.substr(0, 60) + ":" + std::to_string(v[k].second);
+                return o;
+            };
+            std::fprintf(stderr, "[hitch]   %d samples; in:%s\n[hitch]   under:%s\n", total, top(leaf).c_str(), top(mid).c_str());
+            continue;
+        }
+        if (thread_suspend(g_game_mach) != KERN_SUCCESS) continue;
+        x86_thread_state64_t st; mach_msg_type_number_t cnt = x86_THREAD_STATE64_COUNT;
+        hitch_sample &h = g_hs[g_hs_n.load() % 4096];
+        h.n = 0; h.t = now_ticks();
+        if (thread_get_state(g_game_mach, x86_THREAD_STATE64, (thread_state_t)&st, &cnt) == KERN_SUCCESS) {
+            h.pc[h.n++] = st.__rip;
+            uintptr_t fp = st.__rbp;
+            while (h.n < 16 && fp && (fp & 7) == 0) {
+                uintptr_t pair[2]; vm_size_t got = 0;   // read safely: a frame may not be one
+                if (vm_read_overwrite(mach_task_self(), fp, sizeof pair, (vm_address_t)pair, &got) != KERN_SUCCESS || got != sizeof pair) break;
+                uintptr_t ret = pair[1], next = pair[0];
+                if (!ret || next <= fp) break;
+                h.pc[h.n++] = ret; fp = next;
+            }
+        }
+        thread_resume(g_game_mach);
+        g_hs_n.fetch_add(1);
+    }
+    return nullptr;
+}
+static void hitch_frame() {
+    static const bool on = getenv("FF7_HITCH") != nullptr;
+    if (!on) return;
+    static uint64_t last;
+    static mach_timebase_info_data_t tb;
+    if (!tb.denom) {
+        mach_timebase_info(&tb);
+        g_game_mach = mach_thread_self();
+        pthread_t t; pthread_create(&t, nullptr, hitch_thread, nullptr); pthread_detach(t);
+    }
+    const uint64_t now = now_ticks();
+    if (last) {
+        const double ms = (double)(now - last) * tb.numer / tb.denom / 1e6;
+        if (ms > 40) {
+            std::fprintf(stderr, "[hitch] frame %.0f ms\n", ms);
+            g_hitch_from.store(last); g_hitch_to.store(now);
+        }
+    }
+    last = now;
+}
+
 // FF7_PERF=1: every 10 s, frames per second, the slowest frames and the process's CPU use.
 static void perf_frame() {
     static const bool on = getenv("FF7_PERF") != nullptr;
@@ -226,6 +322,7 @@ static void perf_frame() {
 
 extern "C" void *ff7_platform_frame_window(void) {
     perf_frame();
+    hitch_frame();
     std::lock_guard<std::mutex> lk(g_lock);
     return (__bridge void *)g_layer;
 }
