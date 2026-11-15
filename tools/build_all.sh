@@ -7,7 +7,7 @@
 #
 # usage: bash tools/build_all.sh
 #
-# Needs (see README.md): Git, Python 3, the Android SDK with NDK 28.2.13676358 and CMake 3.30.5,
+# Needs (see README_ANDROID.md): Git, Python 3, the Android SDK with NDK 28.2.13676358 and CMake 3.30.5,
 # JDK 17, LLVM for Windows, Visual Studio 2022 Build Tools (C++). tools/env.sh finds them in
 # their standard places or from the environment.
 set -euo pipefail

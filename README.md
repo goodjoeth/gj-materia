@@ -1,230 +1,127 @@
-<p align="center"><img src="docs/images/banner.png" alt="FF7Recomp: FINAL FANTASY VII, native Android recomp. The app icon, the Buster Sword planted under a burning sky as a turquoise meteor falls"></p>
+<p align="center"><img src="macos/icon/AppIcon-1024.png" width="200" alt="GJ Materia icon: a three-barrelled revolver before a red Meteor, VII behind it"></p>
 
-# FF7Recomp
+<h1 align="center">GJ Materia</h1>
 
-FINAL FANTASY VII (PC, the Steam release) statically recompiled to native ARM64 Android, rendered by
-[FFNx](https://github.com/julianxhokaxhiu/FFNx) on Vulkan (or OpenGL ES), with a 7th Heaven-style mod launcher.
-Built for the AYN Thor (dual screen), and meant to run on other Android handhelds and phones.
+<p align="center"><b>FINAL FANTASY VII (Steam) as a native Mac app, with a 7th Heaven-style mod manager.</b><br>
+by <a href="https://github.com/goodjoeth">Good JOE</a> · the macOS port of
+<a href="https://github.com/bhuiyah/ff7-recomp-android">FF7Recomp</a></p>
 
-> **This repository and the APK contain no game code or data.** You need your own copy of FINAL
-> FANTASY VII (the Steam release). The app recompiles **your** `ff7_en.exe` on your device, once;
-> nothing derived from the game is ever published here.
-> Not affiliated with or endorsed by Square Enix. FINAL FANTASY is a trademark of Square Enix.
+> **This repository contains no game code or data.** You need your own copy of FINAL FANTASY VII
+> from Steam. The build script translates **your** `ff7_en.exe` and compiles it on **your** Mac;
+> nothing derived from the game is ever published. Do not share the built app: it contains code
+> derived from the game. Not affiliated with or endorsed by Square Enix.
 
-![FF7Recomp on the AYN Thor: Cosmo Canyon at 118 FPS on the top screen; the party, location, playtime and a touch deck on the bottom screen](docs/images/dual-screen-field.jpg)
-
-## Made with AI
-
-**This project was built with AI, start to finish.** I wanted a working way to play a modded
-FF7 on my AYN Thor, and over a weekend I directed an AI coding agent (Anthropic's Claude, in
-Claude Code) to build it. The AI wrote essentially all of the code here: the recompilation
-pipeline, the Android port of FFNx, the launcher, the on-device build and these docs. My part
-was deciding what to build, testing every step on the Thor, and saying what worked and what
-did not. Commits are credited to Claude for that reason.
-
-I know AI-written code is a real point of contention, so here it is up front:
-
-- **It has not been reviewed line by line by an experienced human developer.** It works on my
-  Thor: the game boots, plays and runs mods, but expect rough edges and bugs.
-- **The hard parts were built by people.** FFNx, pcrecomp and nfsu2-recompiled, 7th Heaven,
-  bgfx, and every mod in the catalogs are human work that this project stands on (see
-  [Credits](#credits-and-licenses)). Please support those projects.
-- **I am making it public to improve it,** and so people can play it. Bug reports, testing on
-  other devices, reviews and fixes are all welcome, from people and from people using AI tools.
-
-If AI-made software is not something you want to run or contribute to, that is a fair choice,
-and I would rather you know before you install it.
+[ภาษาไทยด้านล่าง](#ภาษาไทย)
 
 ## What you get
 
-- The game running natively (no emulation, no Wine/FEX), at 30, 60 or 120 FPS.
-- A launcher: import your game files, browse and install mods from the 7th Heaven catalogs
-  (.iro, .zip, .7z), set mod order and options, settings, save states, achievements. It plays
-  FF7's own menu sounds (or your mods' versions of them).
-- 16:9 widescreen, controller support (A confirms, B cancels), save states.
-- Keyboard support: arrow keys or number pad move; Enter, Space or Z confirm; Backspace or X
-  cancel; Tab or C open the menu; V is Square; Q/Page Up and E/Page Down are L1/R1; 1/Home
-  and 3/End are L2/R2; Esc or P is Start; Shift or Insert is Select.
-- English, French, German or Spanish (**Settings** → **Language**), from the languages
-  your Steam copy includes. Mods that replace text stay in their own language (most are English).
-- On-screen touch controls for devices with one screen and no controller (D-pad, A/B/X/Y,
-  L1/L2/R1/R2, Start/Select); they hide when a controller is used. **Settings** → **On-screen
-  controls**: Automatic, Always or Off.
-- On screens wider than 16:9 (most phones), **Settings** → **Display** → **16:9, stretched to fill** removes the
-  black bars at the sides.
-- A CRT filter (**Settings** → **Display**): scanlines and a phosphor mask, like an old TV.
-- Renderer (**Settings** → **Display**): Vulkan (default) or OpenGL ES, for GPUs whose Vulkan driver
-  has trouble with the game.
-- Portrait on phones (**Settings** → **Screen**): the game at the top; below it the party, location,
-  enemy HP and a touch deck (menu, save/load state, speed), then the on-screen controls.
-- On the AYN Thor's bottom screen: party status, location, enemy HP in battle, a touch deck
-  (menu, save/load state, speed, random battles, battle enhancement); it dims during cutscenes.
-  On the world map it shows the map with where the party is, drawn from your own game files.
-  **Settings** → **Screen** → **Use the second screen** off leaves the bottom screen to other apps
-  (a guide, a browser).
-- The book at the bottom screen's top right opens [Pixel Guide](https://pixelguide.app) there,
-  over the panels, while the controller keeps playing the game; closing it brings the panels back.
-  It reopens where you left it (keep your FF7 guide open in it). Without Pixel Guide, the book
-  downloads it from its GitHub releases and Android asks you to confirm the install.
-- Game boosters as in the console re-releases (speed, no random battles, battle enhancement).
-- Steam achievements on your own Steam account (see [Steam achievements](#steam-achievements)),
-  and a local achievement set (RetroAchievements format; offline only).
+- The game runs natively: no Wine, no CrossOver. The game's code was statically recompiled to C;
+  graphics are FFNx on Metal. (It is built as an Intel app and runs under Rosetta 2 on Apple
+  silicon: the recompiled code keeps the game's 32-bit memory layout, which only Intel processes
+  may use on macOS.)
+- A launcher: settings (4:3, 16:9, 16:10, **21:9**, resolution, 30/60/120 FPS, CRT filter,
+  NTSC-J colours, controller rumble, game boosters), 7th Heaven catalogs with downloads, a mod
+  library with 7th Heaven's Configure Mod (option previews), save import/export (PC saves,
+  DuckStation / RetroArch / ePSXe memory cards), save states, achievements (offline set, and
+  Steam achievements by QR sign-in), playing on any display (an AirPlay display used as a
+  separate display, a TV, a second monitor).
+- Keyboard and controllers (Xbox, PlayStation, MFi). With a controller the launcher switches to a
+  TV mode (big tiles, D-pad and A/B); Select+Start held for 2 seconds (or Cmd+L) leaves the game
+  for the launcher. F1 (or Select+Triangle) shows the achievements over the game; Cmd+Shift+A
+  opens them in a window of their own.
+- iCloud saves: saves and save states in iCloud Drive/FF7Recomp, so every Mac on the Apple ID
+  continues the same game (a backup before each Play, and a warning when another Mac is playing).
+- Report a problem: one .zip with the logs, settings and mod list (no game files, no Steam
+  sign-in), to attach to a bug report.
 
-## Screenshots
+## First: your game files
 
-On the AYN Thor, with mods from the 7th Heaven catalogs (Tsunamods' Finishing Touch, Enhanced Stock UI and others) and a tester's mid-game save.
+You need FINAL FANTASY VII **bought on Steam** (the release sold today). Its files are the Windows
+version; get them onto the Mac one of these ways:
 
-| | |
-|---|---|
-| ![Cosmo Canyon on the top screen; the party, location, playtime, the Pixel Guide book and the touch deck on the bottom screen](docs/images/dual-screen-field.jpg) | ![A battle at 118 FPS with the widescreen battle layout; enemy HP and the touch deck on the bottom screen](docs/images/dual-screen-battle.jpg) |
-| **Dual screen: field** | **Dual screen: battle** |
-| ![The world map near Wutai on the top screen; the whole world map with the party's position on the bottom screen](docs/images/dual-screen-world-map.jpg) | ![Cosmo Canyon with the CRT filter: scanlines and a phosphor mask](docs/images/crt-filter.jpg) |
-| **Dual screen: world map, with where you are** | **CRT filter** |
-| ![Get mods: the 7th Heaven catalogs by category, with search](docs/images/launcher-get-mods.jpg) | ![Mods: enable, order, options; the options one mod sets for another are shown](docs/images/launcher-mods.jpg) |
-| **Get mods** | **Your mods** |
-| ![Building the game on the device from your own copy of FF7](docs/images/launcher-build.jpg) | ![Settings: aspect ratio, frame-rate counter, renderer (Vulkan or OpenGL ES)](docs/images/launcher-settings.jpg) |
-| **First run: building the game on the device** | **Settings** |
+- **A Windows PC:** Steam > right-click the game > Manage > Browse local files, and copy the
+  whole `FINAL FANTASY VII Steam Edition` folder (about 3.5 GB) to the Mac (Downloads or an
+  external drive is fine).
+- **CrossOver or Whisky on the Mac:** install Windows Steam in a bottle, then FF7.
+- **steamcmd on the Mac** (Valve's command-line Steam; it asks for your password and Steam Guard
+  code in the Terminal):
+  ```bash
+  mkdir -p ~/steamcmd && cd ~/steamcmd
+  curl -sqL "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_osx.tar.gz" | tar zxf -
+  ./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir ~/FF7 +login YOUR_STEAM_LOGIN +app_update 3837340 validate +quit
+  ```
 
-## Playing
+The build script and the launcher find the folder by themselves in all of these places (and on
+external drives); you can also point them at it.
 
-1. Download the APK from [Releases](../../releases/latest) and install it (allow installing
-   from your browser or file manager when Android asks).
-2. Install FINAL FANTASY VII from Steam (the version sold today) and put its install folder,
-   `FINAL FANTASY VII Steam Edition` (the one with `ff7` inside), on the device: internal storage,
-   an SD card or a USB drive.
-3. Open FF7Recomp → **Game files** → **Find my FF7 folder…** and pick that folder.
-4. The launcher copies the game files, then builds the game for your device: it translates your
-   `ff7_en.exe` to C, compiles it with the clang it carries and links it with the engine (FFNx,
-   the renderer, the runtime). This happens once; on an AYN Thor it takes about 8 minutes and
-   carries on in the background (a notification shows the progress). **Quiet build** halves the
-   speed to keep the fan low.
-5. Press **Play**.
+## Build
 
-No patch or older version is needed: FINAL FANTASY VII as Steam installs it today has everything
-FF7Recomp uses. Pick its main folder (not `ff7/workingdir`); the launcher checks the game files
-when you import and tells you if the folder is not the right one. Patched game files and the 2013
-release are not supported yet.
+Needs macOS 13 or later, about 15 GB free and 20-30 minutes the first time.
 
-**FF7 from GOG?** Pick the game's main folder: the launcher searches it for the game files and
-checks them, so the same release from another store should work if its files are the same. This
-is untested; if it says the files are not the ones it needs, please report the names and numbers
-it shows.
+1. Get your game files (above).
+2. Install the tools:
+   ```bash
+   xcode-select --install
+   brew install cmake ninja
+   python3 -m pip install --user capstone
+   softwareupdate --install-rosetta --agree-to-license   # Apple silicon
+   ```
+3. Get this source and build:
+   ```bash
+   git clone https://github.com/goodjoeth/gj-materia.git
+   cd gj-materia
+   bash tools/build_mac.sh            # finds the game; or pass its folder
+   ```
+4. Open `build/macos/GJ Materia.app`. On the Play page, **Find FF7 on this Mac** and **Import**
+   (once: the game files are copied into the app's folder), then **Play**.
 
-**Short on space?** With an SD card in the device, **Settings** → **Storage** moves your game
-files, mods, saves and save states to it (and back). The built game itself stays in internal
-storage, as Android runs no code from SD cards.
+Keep the source folder: **My mods > Make mods faster** re-lifts the enabled mods' code patches
+from it (about 5-10 minutes) so they run natively.
 
-**FF7 downloaded with GameNative?** GameNative keeps games in its private internal storage by
-default, which other apps cannot read. Turn on GameNative's external storage (SD card) option and
-pick `GameNative/Steam/steamapps/common/FINAL FANTASY VII` on the card, or copy the folder from a PC.
+Technical notes: [docs/MACOS.md](docs/MACOS.md). The Android version this is ported from:
+[README_ANDROID.md](README_ANDROID.md).
 
-### Bringing your saves
+## Credits
 
-**Save states** → **Import saves (PC or PlayStation)…** takes:
+GJ Materia was put together by Good JOE, with an AI coding agent (Claude, in Claude Code) writing
+the code under his direction, as the Android version was.
 
-- **PC save files** (`save00.ff7`…`save09.ff7`) from the 2013 Steam release, the original PC release or a
-  7th Heaven install. On a PC the Steam release keeps them in
-  `Documents\Square Enix\FINAL FANTASY VII Steam\user_…`.
-- **PlayStation memory cards**: DuckStation (`.mcd`), ePSXe (`.mcr`), RetroArch (`.srm`), DexDrive
-  (`.gme`) or PSP (`.vmp`). DuckStation keeps its cards in
-  `Android/data/com.github.stenzek.duckstation/files/memcards`.
+FF7Recomp and its Android port; [FFNx](https://github.com/julianxhokaxhiu/FFNx);
+[pcrecomp](https://github.com/sp00nznet/pcrecomp); 7th Heaven and the Qhimm / Tsunamods
+catalogs; bgfx, FFmpeg, SDL, rcheevos and the other libraries in `tools/fetch_deps*.sh`; and every
+mod author. Please support them. Licensed under the GNU GPL v3 (see LICENSE), as FF7Recomp and FFNx.
 
-Copy the file somewhere you can pick it, such as Download, first. The saves go into a new save file
-(Save 2, Save 3… under **Continue**), so none of yours are overwritten. Saves made by the current
-Steam release's own launcher use a different format and are not supported yet.
+---
 
-## Building the APK
+## ภาษาไทย
 
-The APK is built on **Windows** (Git Bash) and needs no game files.
+FINAL FANTASY VII (เวอร์ชัน Steam) เป็นแอป Mac แบบ native พร้อมตัวจัดการม็อดแบบ 7th Heaven
 
-### 1. Install the tools
+> **repo นี้ไม่มีโค้ดหรือไฟล์ของเกม** ต้องมี FINAL FANTASY VII จาก Steam ของตัวเอง สคริปต์จะแปลง
+> `ff7_en.exe` **ของคุณ** และ compile บน Mac **ของคุณ** เท่านั้น **ห้ามแชร์แอปที่ build แล้ว** เพราะมีโค้ดที่แปลงมาจากเกม
+> ไม่เกี่ยวข้องกับ Square Enix
 
-| Tool | Notes |
-|---|---|
-| [Git for Windows](https://git-scm.com/download/win) | provides Git Bash |
-| [Python 3](https://www.python.org/downloads/) | |
-| [Android Studio](https://developer.android.com/studio) or the command-line SDK | SDK Manager → SDK Tools: **NDK (Side by side) 28.2.13676358**, **CMake 3.30.5**, Android SDK Platform-Tools |
-| JDK 17 | Android Studio's bundled JBR works, or [Microsoft OpenJDK 17](https://learn.microsoft.com/java/openjdk/download) |
-| [LLVM for Windows](https://github.com/llvm/llvm-project/releases) | clang for build-time host tools |
-| [Visual Studio 2022 Build Tools](https://visualstudio.microsoft.com/downloads/) | "Desktop development with C++" (bgfx's shader compiler, LLVM's tablegen) |
+### ได้อะไร
+- เกมรันแบบ native ไม่ใช้ Wine/CrossOver (โค้ดเกมถูกแปลงเป็น C ภาพผ่าน FFNx บน Metal แอปเป็น Intel และรันผ่าน Rosetta 2 บน Apple silicon)
+- Launcher ภาษาไทย: ตั้งค่า (4:3, 16:9, 16:10, **21:9**, ความละเอียด, 30/60/120 FPS, ฟิลเตอร์ CRT, สี NTSC-J, การสั่นของจอย, ตัวช่วยเล่น), ค้นหาและดาวน์โหลดม็อดจาก catalog ของ 7th Heaven, จัดการม็อดพร้อมภาพตัวอย่างตัวเลือก, นำเข้า/ส่งออกเซฟ (PC, memory card ของ DuckStation/RetroArch/ePSXe), save state, achievement (ออฟไลน์ และ Steam ผ่าน QR), เลือกจอที่เล่น (รวม AirPlay แบบจอแยก)
+- คีย์บอร์ดและจอย Xbox / PlayStation / MFi กดปุ่มจอยใน launcher จะเข้าโหมดทีวี (ใช้จอยล้วน) กด Select+Start ค้าง 2 วินาที (หรือ Cmd+L) ในเกมเพื่อกลับ launcher กด F1 (หรือ Select+△) ดู achievement ทับบนเกม หรือ Cmd+Shift+A เปิดเป็นหน้าต่างแยก
+- เซฟ iCloud: เก็บเซฟและ save state ใน iCloud Drive/FF7Recomp ทุก Mac ที่ใช้ Apple ID เดียวกันเล่นต่อกันได้ (สำรองเซฟทุกครั้งที่กดเล่น และเตือนเมื่อมีอีกเครื่องเปิดเกมอยู่)
+- ปุ่มรายงานปัญหา: รวม log ตั้งค่า และรายการม็อดเป็นไฟล์ .zip เดียว (ไม่มีไฟล์เกมและข้อมูลบัญชี Steam)
 
-`tools/env.sh` finds these in their standard install locations. If yours are elsewhere, set
-`ANDROID_SDK_ROOT`, `JAVA_HOME`, `LLVM_DIR` or `MSBUILD`.
+### ขั้นแรก: ไฟล์เกมของคุณ (ต้องทำก่อน)
+ต้องซื้อ FINAL FANTASY VII **บน Steam** (เวอร์ชันที่ขายปัจจุบัน) ไฟล์เกมเป็นเวอร์ชัน Windows เอามาไว้ใน Mac ได้ 3 วิธี:
+- **มีคอม Windows:** ใน Steam คลิกขวาที่เกม → Manage → Browse local files → ก๊อปโฟลเดอร์ `FINAL FANTASY VII Steam Edition` ทั้งโฟลเดอร์ (~3.5 GB) มาไว้ใน Mac
+- **CrossOver หรือ Whisky บน Mac:** ติดตั้ง Steam เวอร์ชัน Windows ใน bottle แล้วติดตั้ง FF7
+- **steamcmd บน Mac:** ใช้คำสั่งในส่วนภาษาอังกฤษด้านบน (Terminal จะถามรหัสผ่านและรหัส Steam Guard)
 
-### 2. Build
+สคริปต์ build และ launcher จะค้นหาโฟลเดอร์เกมเองทุกที่ข้างบน รวมถึงไดรฟ์ภายนอก
 
-In Git Bash:
+### วิธี build
+ต้องใช้ macOS 13 ขึ้นไป พื้นที่ว่าง ~15 GB ครั้งแรกใช้เวลา 20–30 นาที
 
-```bash
-git clone <this repository> FF7Recomp
-cd FF7Recomp
-bash tools/build_all.sh
-```
+1. เตรียมไฟล์เกม (ขั้นแรกด้านบน)
+2. ติดตั้งเครื่องมือ (คำสั่งในส่วนภาษาอังกฤษด้านบน)
+3. โหลดซอร์สแล้วรัน `bash tools/build_mac.sh` (ค้นหาเกมเอง หรือใส่ path ของโฟลเดอร์เกมต่อท้าย)
+4. เปิด `build/macos/GJ Materia.app` → หน้าเล่น → **ค้นหา FF7 ในเครื่อง** → **นำเข้า** (ครั้งเดียว) → **เล่น**
 
-`build_all.sh` runs every step in order: the pinned toolkits (pcrecomp, FFNx, bgfx) and their
-patches, the libraries, FFmpeg, shaders, the on-device build kit (clang and lld built for Android,
-about 40 minutes the first time; Python for Android; the lifter; the engine's prebuilt archives)
-and the APK. If a step fails, fix the cause and run it again; finished steps are skipped.
-
-The APK ends up in `android/app/build/outputs/apk/debug/app-debug.apk`.
-
-`config/catalog.json.gz` (the function boundaries of the game's exe: addresses only) and
-`config/ffnx_manifests/` (FFNx's patch sites) come from the game's exe and are made on a PC that
-has it, with `tools/run_lift.py catalog` and `tools/refresh_manifests.sh`.
-
-## Mods
-
-**Get mods** lists the Qhimm and Sega 7th Heaven catalogs. Install, then enable and order them
-under **Mods** (higher in the list wins). **Auto-sort** orders them as 7th Heaven's Auto-sort
-does: by category, then by each mod's own load-order rules (for example Finishing Touch above
-Enhanced Stock UI). Those rules, and the option values one mod sets for another for compatibility,
-also apply in game whatever the list order, as 7th Heaven applies them at launch. Large mods download and unpack on the device; you
-can keep using the launcher meanwhile. You can also add your own `.iro` files or mod folders.
-
-## Steam achievements
-
-**Achievements** → **Sign in with the Steam app…** shows a QR code: scan it in the Steam mobile
-app (Steam Guard → Scan a QR code) and approve. You never type your Steam password into
-FF7Recomp; it keeps only Steam's sign-in token, in its private storage. **Sign out** removes it.
-
-FFNx's own achievement code decides when one is earned, exactly as it does on PC; FF7Recomp
-sends it to your Steam account (the FINAL FANTASY VII you own on Steam: the current release or
-the 2013 one, each with its own list). Unlocks show in game and as a notification, and are sent
-at once when online, or the next time you are. While it talks to Steam, your Steam profile may
-briefly show you playing FINAL FANTASY VII.
-
-## Reporting problems
-
-Please open an issue with your device, Android version, the mods you have enabled, and what
-happened. Logs are in `Android/data/com.ff7recomp/files/`: `ff7.log`, `build.log` (the first-run
-build) and `game/FFNx.log`.
-
-## Known limitations
-
-- Only FINAL FANTASY VII as sold on Steam today is supported, unpatched. It plays in English,
-  French, German or Spanish; the Japanese edition is not supported yet.
-- Movies decode on the CPU (no hardware decoding yet): upscaled 30 FPS movie mods work on the
-  Thor but run warmer.
-- The 120 FPS mode is experimental. It runs fields at 120; the world map and battles stay at 60.
-- RetroAchievements: offline only, until the port is approved by RetroAchievements.
-- Steam achievements: tested with "First Blood" on the current release; the others use FFNx's
-  triggers unchanged but have not each been played through here. Steam playtime and cloud saves
-  are not synced.
-
-## Credits and licenses
-
-FF7Recomp is GPL-3.0 (it links FFNx). It builds on:
-[pcrecomp](https://github.com/sp00nznet/pcrecomp) (MIT),
-[nfsu2-recompiled](https://github.com/codepdbh/nfsu2-recompiled) (MIT; Android host),
-[FFNx](https://github.com/julianxhokaxhiu/FFNx) (GPL-3.0),
-[bgfx/bx/bimg](https://github.com/bkaradzic/bgfx) (BSD-2),
-[7th Heaven](https://github.com/tsunamods-codes/7th-Heaven) (MS-PL; mod formats),
-[rcheevos](https://github.com/RetroAchievements/rcheevos) (MIT),
-the [LZMA SDK](https://www.7-zip.org/sdk.html) (public domain),
-[FFmpeg](https://ffmpeg.org/) (LGPL).
-The APK also carries, for the on-device build: [LLVM/clang and lld](https://llvm.org/) (Apache-2.0
-with LLVM exceptions), [Python for Android](https://www.python.org/downloads/android/) (PSF),
-[Capstone](https://www.capstone-engine.org/) (BSD-3) and [pefile](https://github.com/erocarrera/pefile) (MIT).
-For Steam achievements: [JavaSteam](https://github.com/Longi94/JavaSteam) (MIT) with its libraries
-(protobuf, BSD-3; OkHttp, Ktor and Kotlin, Apache-2.0; Commons Lang, Apache-2.0) and
-[ZXing](https://github.com/zxing/zxing) (Apache-2.0) for the QR code.
+เก็บโฟลเดอร์ซอร์สไว้ด้วย: ปุ่ม **ม็อดของฉัน → ทำให้ม็อดเร็วขึ้น** จะใช้มัน lift โค้ดของม็อดให้รันแบบ native
