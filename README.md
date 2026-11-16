@@ -57,6 +57,38 @@ At 21:9 the mods' battle windows are laid out for 16:9; Settings chooses where t
 |:---:|:---:|:---:|
 | <img src="docs/images/mac/hud21-0.jpg" alt="16:9 position"> | <img src="docs/images/mac/hud21-1.jpg" alt="halfway"> | <img src="docs/images/mac/hud21-2.jpg" alt="at the edge"> |
 
+## Mods, side by side
+
+The same saves with no mods, with one set and with another. Every mod comes from 7th Heaven's
+catalogs and is installed from the launcher (Get mods > Download), with its options set in
+My mods > Configure, as in 7th Heaven.
+
+* **Vanilla**: no mods.
+* **Set 1**: Finishing Touch, Enhanced Stock UI, Ninostyle Chibi (+ Fixes and Additions),
+  Ninostyle Battle, SYW Unified Battle Textures, Cosmos Limit Break (widescreen field backgrounds).
+* **Set 2**: Ninostyle HD (field models), Ninostyle Battle, Retextured World Textures, IFRIT
+  interface tweaks, Wolfman avatars.
+
+| Vanilla | Set 1 | Set 2 |
+|:---:|:---:|:---:|
+| <img src="docs/images/mac/mods-slums-vanilla.jpg" alt="slums vanilla"> | <img src="docs/images/mac/mods-slums-set1.jpg" alt="slums set1"> | <img src="docs/images/mac/mods-slums-set2.jpg" alt="slums set2"> |
+| <img src="docs/images/mac/mods-shinra-vanilla.jpg" alt="shinra vanilla"> | <img src="docs/images/mac/mods-shinra-set1.jpg" alt="shinra set1"> | <img src="docs/images/mac/mods-shinra-set2.jpg" alt="shinra set2"> |
+| <img src="docs/images/mac/mods-cosmo-vanilla.jpg" alt="cosmo vanilla"> | <img src="docs/images/mac/mods-cosmo-set1.jpg" alt="cosmo set1"> | <img src="docs/images/mac/mods-cosmo-set2.jpg" alt="cosmo set2"> |
+| <img src="docs/images/mac/mods-nibel-vanilla.jpg" alt="nibel vanilla"> | <img src="docs/images/mac/mods-nibel-set1.jpg" alt="nibel set1"> | <img src="docs/images/mac/mods-nibel-set2.jpg" alt="nibel set2"> |
+
+## Controller rumble
+
+FINAL FANTASY VII on PC never vibrated, and FFNx's vibration covers FF8 only. GJ Materia adds it,
+following what is on screen, on any controller the Mac can rumble (DualSense, DualShock 4, Xbox):
+
+* **Battles**: a pulse on every hit, landed or taken, when its damage number comes up; strong
+  magic, summons and Limit Breaks hit harder; a party member falling is a long, full rumble.
+* **The field**: the screen's shakes (explosions, earthquakes, the plate falling) as strong as the
+  shake, easing off when a scene leaves it running.
+* **Minigames**: crashes, hits and landings in G-Bike, the chocobo races, snowboarding, Fort
+  Condor, the submarine and the Speed Square, from their sound effects.
+* Off, light or strong in Settings.
+
 ## Why it runs natively, and what that saves you
 
 Wine, CrossOver, Whisky and the kits built on them run the Windows game as it is: every Windows
@@ -151,6 +183,25 @@ from it (about 5-10 minutes) so they run natively.
 Technical notes: [docs/MACOS.md](docs/MACOS.md). The Android version this is ported from:
 [README_ANDROID.md](README_ANDROID.md).
 
+## Roadmap
+
+Done: everything listed under "What you get". Planned next, roughly in order:
+
+* **More rumble**: a heartbeat at low HP, a pulse when a Limit Break is ready, patterns per
+  element (fire crackle, thunder bursts, quake rumble), summons timed to their animations, the
+  airship's and buggy's engines; DualSense light bar (party HP, Limit ready) and adaptive triggers.
+* **Smoother scene changes**: load the next scene's files ahead (the last 50-150 ms hitches are
+  file reads).
+* **All mod code native**: the remaining code patches that still run in the interpreter.
+* **21:9 battle windows without UI mods** (the game's own layout).
+* **Updates from the app**: tell when a new GJ Materia is out and rebuild it with the installer.
+* **A signed installer** (Apple Developer ID, so no right-click > Open the first time).
+* **Apple silicon native and iPad**: both need the recompiled code to stop relying on the game's
+  32-bit memory layout (the reason for Rosetta 2 today). The biggest job on the list.
+* **RetroAchievements online**, once RetroAchievements approves the app (the set works offline now).
+
+Help and bug reports are welcome: the launcher's "Report a problem..." makes a .zip to attach.
+
 ## Credits
 
 GJ Materia was put together by Good JOE, with an AI coding agent (Claude, in Claude Code) writing
@@ -193,6 +244,21 @@ GJ Materia แปลงครั้งเดียวล่วงหน้าบ
 
 ### เปรียบเทียบสัดส่วนจอและตำแหน่ง HUD
 ภาพด้านบน (หัวข้อ Screen shapes): world map จุดเดียวกันที่ 4:3, 16:9 และ 21:9 (จอกว้างเห็นโลกมากขึ้น ไม่ได้ยืดภาพ) และฉากต่อสู้ที่ 21:9 กับตำแหน่งแถบ HP/MP สามแบบที่เลือกได้ในหน้าตั้งค่า
+
+### ม็อดเทียบกัน และจอยสั่น
+ภาพเทียบด้านบน (หัวข้อ Mods, side by side): เซฟเดียวกันแบบไม่มีม็อด, ม็อดชุดที่ 1 และชุดที่ 2 ทุกม็อดโหลดจาก catalog ของ 7th Heaven ผ่าน launcher
+
+**จอยสั่น (จุดเด่น):** FF7 เวอร์ชัน PC ไม่เคยมีจอยสั่น และ FFNx ทำไว้ให้เฉพาะ FF8 GJ Materia เพิ่มให้ตามสิ่งที่เกิดบนจอ ใช้ได้กับจอยที่สั่นบน Mac (DualSense, DualShock 4, Xbox): ตีโดนหรือโดนตีสั่นทุกครั้ง เวทแรง/อัญเชิญ/Limit Break สั่นหนักกว่า สมาชิกล้มสั่นยาว ฉากสั่น (ระเบิด แผ่นดินไหว) สั่นตามความแรง และมินิเกม (G-Bike แข่งช็อกโกโบ สโนว์บอร์ด Fort Condor เรือดำน้ำ Speed Square) สั่นตามเสียงชนและกระแทก ปรับ ปิด/เบา/แรง ได้
+
+### แผนงานต่อไป (Roadmap)
+- **จอยสั่นเพิ่ม**: หัวใจเต้นตอน HP ต่ำ, สั่นตอน Limit พร้อม, รูปแบบตามธาตุ (ไฟ สายฟ้า แผ่นดินไหว), อัญเชิญสั่นตามจังหวะแอนิเมชัน, เสียงเครื่องยนต์เรือเหาะ/รถบั๊กกี้ และไฟ DualSense ตาม HP / Limit กับ adaptive trigger
+- **เปลี่ยนฉากลื่นขึ้น**: โหลดไฟล์ฉากถัดไปล่วงหน้า
+- **โค้ดม็อดรัน native ทั้งหมด**
+- **UI ฉากต่อสู้ 21:9 สำหรับ UI เดิมของเกม** (ไม่มีม็อด)
+- **อัปเดตจากในแอป**: แจ้งเมื่อมีเวอร์ชันใหม่และ build ใหม่ผ่าน installer
+- **installer ที่ลงชื่อกับ Apple** (ไม่ต้องคลิกขวา → Open ครั้งแรก)
+- **รันบน Apple silicon โดยตรง และ iPad**: ต้องเปลี่ยนวิธีจัดหน่วยความจำของโค้ดที่แปลงมา งานใหญ่ที่สุด
+- **RetroAchievements ออนไลน์** เมื่อ RetroAchievements อนุมัติ
 
 ### ขั้นแรก: ไฟล์เกมของคุณ (ต้องทำก่อน)
 ต้องซื้อ FINAL FANTASY VII **บน Steam** (เวอร์ชันที่ขายปัจจุบัน) ไฟล์เกมเป็นเวอร์ชัน Windows เอามาไว้ใน Mac ได้ 3 วิธี:
