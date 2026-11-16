@@ -61,14 +61,20 @@ if [ -z "$GAME" ] && [ ! -f game/ff7_en.exe ]; then
   echo "found FINAL FANTASY VII: $GAME"
 fi
 
+# Apple silicon builds native arm64 (the game's memory at an offset); Intel builds x86_64.
+# FF7_ARCH=x86_64 forces the Intel build (Rosetta 2 on Apple silicon). sysctl, not uname: a shell
+# running under Rosetta reports x86_64.
+ARCH="${FF7_ARCH:-$([ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ] && echo arm64 || echo x86_64)}"
+FFMPEG_DIR="build/ffmpeg-mac$([ "$ARCH" = arm64 ] && echo -arm64 || true)"
+
 step "1/8 checking the tools"
 xcode-select -p >/dev/null 2>&1 || die "Xcode Command Line Tools are missing: run  xcode-select --install"
 command -v cmake >/dev/null || die "cmake is missing: brew install cmake"
 command -v ninja >/dev/null || die "ninja is missing: brew install ninja"
 command -v python3 >/dev/null || die "python3 is missing"
 python3 -c 'import capstone' 2>/dev/null || die "Python's capstone is missing: python3 -m pip install --user capstone"
-[ "$(uname -m)" = arm64 ] && { arch -x86_64 /usr/bin/true 2>/dev/null || die "Rosetta 2 is missing: softwareupdate --install-rosetta --agree-to-license"; }
-echo "ok"
+[ "$ARCH" = x86_64 ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ] && { arch -x86_64 /usr/bin/true 2>/dev/null || die "Rosetta 2 is missing: softwareupdate --install-rosetta --agree-to-license"; }
+echo "ok (building for $ARCH)"
 
 step "2/8 toolkits and libraries (pinned, patched)"
 bash tools/fetch_deps_mac.sh | tail -1        # first: setup's FFNx edits touch a library header too
@@ -82,7 +88,7 @@ step "4/8 translating the game's code (the lift)"
 [ -f generated/recomp/recomp_dispatch.c ] || bash tools/lift_mac.sh
 
 step "5/8 FFmpeg (movies)"
-[ -f build/ffmpeg-mac/lib/libavcodec.a ] || bash tools/build_ffmpeg_mac.sh | tail -1
+[ -f "$FFMPEG_DIR/lib/libavcodec.a" ] || FF7_ARCH=$ARCH bash tools/build_ffmpeg_mac.sh | tail -1
 
 step "6/8 shaders (bgfx shaderc, Metal)"
 if [ ! -x external/bgfx/.build/osx-arm64/bin/shadercRelease ] && [ ! -x external/bgfx/.build/osx-x64/bin/shadercRelease ]; then
@@ -94,7 +100,11 @@ fi
 [ -f build/shaders-mtl/FFNx.flat.mtl.frag ] || bash tools/compile_shaders_mac.sh | tail -1
 
 step "7/8 compiling the app (the first time takes a while)"
-cmake -S "$ROOT/macos" -B "$ROOT/build/macos" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null
+# a folder built for the other architecture starts over (its libraries are the wrong kind)
+if [ -f build/macos/CMakeCache.txt ] && ! grep -q "^FF7_ARCH:STRING=$ARCH$" build/macos/CMakeCache.txt; then
+  rm -rf "${ROOT:?}/build/macos"
+fi
+cmake -S "$ROOT/macos" -B "$ROOT/build/macos" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFF7_ARCH="$ARCH" >/dev/null
 cmake --build "$ROOT/build/macos" -- -j"$(sysctl -n hw.ncpu)" | grep -E ' error|FAILED' && die "the build failed (see above)" || true
 [ -x "build/macos/GJ Materia.app/Contents/MacOS/GJ Materia" ] || die "the build failed"
 

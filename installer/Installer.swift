@@ -1,6 +1,6 @@
 // GJ Materia Installer - builds GJ Materia on the player's own Mac from their own copy of FINAL
 // FANTASY VII (Steam). It holds no game code and downloads none: it installs Apple's Command Line
-// Tools and Rosetta when missing, fetches cmake, ninja and Python's capstone into its own folder
+// Tools (and Rosetta, for an Intel build on Apple silicon) when missing, fetches cmake, ninja and Python's capstone into its own folder
 // (no Homebrew), finds the game, clones github.com/goodjoeth/gj-materia and runs tools/build_mac.sh,
 // then puts GJ Materia.app in Applications.
 //
@@ -184,6 +184,11 @@ final class Installer: ObservableObject {
         var arm: Int32 = 0; var sz = MemoryLayout<Int32>.size
         let isArm = machine == "arm64" || (sysctlbyname("hw.optional.arm64", &arm, &sz, nil, 0) == 0 && arm == 1)
         guard isArm else { set(1, .skipped, L("Mac รุ่น Intel ไม่ต้องใช้", "Not needed on an Intel Mac")); return }
+        // Apple silicon builds the native arm64 app (tools/build_mac.sh): Rosetta only for an
+        // Intel build asked for with FF7_ARCH=x86_64
+        if ProcessInfo.processInfo.environment["FF7_ARCH"] != "x86_64" {
+            set(1, .skipped, L("ไม่ต้องใช้: แอปรันบน Apple silicon โดยตรง", "Not needed: the app runs natively on Apple silicon")); return
+        }
         set(1, .running)
         if ok("/usr/bin/arch", ["-x86_64", "/usr/bin/true"]) { set(1, .done); return }
         if headless { throw Failed(message: "Rosetta 2 is missing") }

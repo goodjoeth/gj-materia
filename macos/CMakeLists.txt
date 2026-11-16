@@ -15,6 +15,8 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 13.0 CACHE STRING "" FORCE)   # SwiftUI Navigati
 set(CMAKE_Swift_COMPILER_TARGET ${FF7_ARCH}-apple-macos13.0 CACHE STRING "" FORCE)
 if(FF7_ARCH STREQUAL "arm64")
   set(FF7_OFFSET_MEMORY ON CACHE BOOL "" FORCE)
+else()
+  set(FF7_OFFSET_MEMORY OFF CACHE BOOL "" FORCE)   # a build folder switched back from arm64
 endif()
 project(FF7RecompMac C CXX OBJC OBJCXX ASM Swift)
 get_filename_component(FF7_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)

@@ -23,9 +23,8 @@ by <a href="https://github.com/goodjoeth">Good JOE</a> · the macOS port of
 ## What you get
 
 - The game runs natively: no Wine, no CrossOver. The game's code was statically recompiled to C;
-  graphics are FFNx on Metal. (It is built as an Intel app and runs under Rosetta 2 on Apple
-  silicon: the recompiled code keeps the game's 32-bit memory layout, which only Intel processes
-  may use on macOS.)
+  graphics are FFNx on Metal. On Apple silicon it is a native arm64 app (no Rosetta); on Intel
+  Macs, an Intel app.
 - A launcher in English or Thai: settings (4:3, 16:9, 16:10, **21:9**, resolution, 30/60/120 FPS, CRT filter,
   NTSC-J colours, controller rumble, game boosters), 7th Heaven catalogs with downloads, a mod
   library with 7th Heaven's Configure Mod (option previews), save import/export (PC saves,
@@ -116,10 +115,11 @@ What that gives you: a steady 60 FPS with even frame pacing, no shader-translati
 start-up, the Mac's own fullscreen, Retina resolution, rumble on Mac controllers, AirPlay to a TV,
 iCloud saves, and nothing to configure (no bottles, prefixes or DLL overrides).
 
-One honest note: the app is built for Intel and runs under Rosetta 2 on Apple silicon. The
-recompiled code keeps the game's 32-bit memory layout, which macOS only allows Intel processes.
-Rosetta translates the whole app once, ahead of time, so this costs little; it is not the
-run-time Windows emulation Wine does.
+On Apple silicon the app is native arm64. The recompiled code expects the game's 32-bit memory
+layout, which macOS keeps out of reach of arm64 apps (the lowest 4 GB), so GJ Materia gives the
+game a 4 GB block of its own anywhere in memory and the code reaches it at an offset. Against the
+earlier Intel build under Rosetta 2: the same steady 60 FPS, with about a fifth less CPU (30% vs
+38% on a world-map walk). `FF7_ARCH=x86_64 bash tools/build_mac.sh` still builds the Intel app.
 
 ## First: your game files
 
@@ -147,8 +147,8 @@ external drives); you can also point them at it.
 2. Download **GJ-Materia-Installer.zip** from [Releases](https://github.com/goodjoeth/gj-materia/releases),
    unzip it, and open **GJ Materia Installer**. The first time, macOS may say it can't check the
    developer: right-click the installer, choose **Open**, then **Open** again.
-3. Press **Install**. It sets up Apple's Command Line Tools and Rosetta 2 if missing (macOS asks
-   you to confirm), fetches the build tools into its own folder (no Homebrew needed), finds your
+3. Press **Install**. It sets up Apple's Command Line Tools if missing (macOS asks you to
+   confirm), fetches the build tools into its own folder (no Homebrew needed), finds your
    game, downloads this source and builds GJ Materia on your Mac (20-40 minutes the first time),
    then puts it in Applications.
 
@@ -166,7 +166,6 @@ Needs macOS 13 or later, about 15 GB free and 20-30 minutes the first time.
    xcode-select --install
    brew install cmake ninja
    python3 -m pip install --user capstone
-   softwareupdate --install-rosetta --agree-to-license   # Apple silicon
    ```
 3. Get this source and build:
    ```bash
@@ -196,8 +195,8 @@ Done: everything listed under "What you get". Planned next, roughly in order:
 * **21:9 battle windows without UI mods** (the game's own layout).
 * **Updates from the app**: tell when a new GJ Materia is out and rebuild it with the installer.
 * **A signed installer** (Apple Developer ID, so no right-click > Open the first time).
-* **Apple silicon native and iPad**: both need the recompiled code to stop relying on the game's
-  32-bit memory layout (the reason for Rosetta 2 today). The biggest job on the list.
+* **iPad and iPhone**: an app for sideloading (AltStore, SideStore, LiveContainer), built on the
+  native Apple silicon version (done).
 * **RetroAchievements online**, once RetroAchievements approves the app (the set works offline now).
 
 Help and bug reports are welcome: the launcher's "Report a problem..." makes a .zip to attach.
@@ -242,7 +241,7 @@ FINAL FANTASY VII (เวอร์ชัน Steam) เป็นแอป Mac แ
 > ไม่เกี่ยวข้องกับ Square Enix
 
 ### ได้อะไร
-- เกมรันแบบ native ไม่ใช้ Wine/CrossOver (โค้ดเกมถูกแปลงเป็น C ภาพผ่าน FFNx บน Metal แอปเป็น Intel และรันผ่าน Rosetta 2 บน Apple silicon)
+- เกมรันแบบ native ไม่ใช้ Wine/CrossOver (โค้ดเกมถูกแปลงเป็น C ภาพผ่าน FFNx บน Metal บน Apple silicon เป็นแอป arm64 แท้ ไม่ใช้ Rosetta บน Mac Intel เป็นแอป Intel)
 - Launcher ภาษาอังกฤษหรือไทย (เปลี่ยนได้ในหน้าตั้งค่า): ตั้งค่า (4:3, 16:9, 16:10, **21:9**, ความละเอียด, 30/60/120 FPS, ฟิลเตอร์ CRT, สี NTSC-J, การสั่นของจอย, ตัวช่วยเล่น), ค้นหาและดาวน์โหลดม็อดจาก catalog ของ 7th Heaven, จัดการม็อดพร้อมภาพตัวอย่างตัวเลือก, นำเข้า/ส่งออกเซฟ (PC, memory card ของ DuckStation/RetroArch/ePSXe), save state, achievement (ออฟไลน์ และ Steam ผ่าน QR), เลือกจอที่เล่น (รวม AirPlay แบบจอแยก)
 - คีย์บอร์ดและจอย Xbox / PlayStation / MFi กดปุ่มจอยใน launcher จะเข้าโหมดทีวี (ใช้จอยล้วน) กด Select+Start ค้าง 2 วินาที (หรือ Cmd+L) ในเกมเพื่อกลับ launcher กด F1 (หรือ Select+△) ดู achievement ทับบนเกม หรือ Cmd+Shift+A เปิดเป็นหน้าต่างแยก
 - เซฟ iCloud: เก็บเซฟและ save state ใน iCloud Drive/FF7Recomp ทุก Mac ที่ใช้ Apple ID เดียวกันเล่นต่อกันได้ (สำรองเซฟทุกครั้งที่กดเล่น และเตือนเมื่อมีอีกเครื่องเปิดเกมอยู่)
@@ -259,7 +258,7 @@ GJ Materia แปลงครั้งเดียวล่วงหน้าบ
 
 ผลที่ได้: 60 FPS นิ่ง จังหวะเฟรมสม่ำเสมอ ไม่กระตุกจากการแปลง shader เปิดเร็ว เต็มจอแบบ Mac ความละเอียด Retina จอยสั่นได้ AirPlay ขึ้นทีวี เซฟ iCloud และไม่ต้องตั้งค่า bottle, prefix หรือ DLL ใดๆ
 
-หมายเหตุตามจริง: แอป build เป็น Intel และรันผ่าน Rosetta 2 บน Apple silicon เพราะโค้ดที่แปลงมาใช้หน่วยความจำแบบ 32 บิตของเกม ซึ่ง macOS อนุญาตเฉพาะโปรแกรม Intel แต่ Rosetta แปลทั้งแอปครั้งเดียวล่วงหน้า เสียประสิทธิภาพน้อย ไม่ใช่การจำลอง Windows ระหว่างเล่นแบบ Wine
+บน Apple silicon แอปเป็น arm64 แท้: โค้ดที่แปลงมาต้องใช้หน่วยความจำแบบ 32 บิตของเกม ซึ่ง macOS ไม่ให้แอป arm64 ใช้ช่วง 4 GB ล่างสุด GJ Materia จึงจองพื้นที่ 4 GB ให้เกมไว้ที่อื่นแล้วให้โค้ดเข้าถึงแบบเลื่อนตำแหน่ง เทียบกับเวอร์ชัน Intel ที่รันผ่าน Rosetta 2 เดิม: 60 FPS นิ่งเท่าเดิม แต่ใช้ CPU น้อยลงราวหนึ่งในห้า (30% เทียบ 38% ตอนเดินบน world map) ถ้าต้องการแอป Intel ใช้ `FF7_ARCH=x86_64 bash tools/build_mac.sh`
 
 ### เปรียบเทียบสัดส่วนจอและตำแหน่ง HUD
 ภาพด้านบน (หัวข้อ Screen shapes): world map จุดเดียวกันที่ 4:3, 16:9 และ 21:9 (จอกว้างเห็นโลกมากขึ้น ไม่ได้ยืดภาพ) และฉากต่อสู้ที่ 21:9 กับตำแหน่งแถบ HP/MP สามแบบที่เลือกได้ในหน้าตั้งค่า
@@ -276,7 +275,7 @@ GJ Materia แปลงครั้งเดียวล่วงหน้าบ
 - **UI ฉากต่อสู้ 21:9 สำหรับ UI เดิมของเกม** (ไม่มีม็อด)
 - **อัปเดตจากในแอป**: แจ้งเมื่อมีเวอร์ชันใหม่และ build ใหม่ผ่าน installer
 - **installer ที่ลงชื่อกับ Apple** (ไม่ต้องคลิกขวา → Open ครั้งแรก)
-- **รันบน Apple silicon โดยตรง และ iPad**: ต้องเปลี่ยนวิธีจัดหน่วยความจำของโค้ดที่แปลงมา งานใหญ่ที่สุด
+- **iPad และ iPhone**: แอปสำหรับ sideload (AltStore, SideStore, LiveContainer) ต่อยอดจากเวอร์ชัน Apple silicon แบบ native (ทำเสร็จแล้ว)
 - **RetroAchievements ออนไลน์** เมื่อ RetroAchievements อนุมัติ
 
 ### ขอบคุณและเครดิต
@@ -302,7 +301,7 @@ GJ Materia แปลงครั้งเดียวล่วงหน้าบ
 ### ติดตั้งแบบง่าย
 1. เตรียมไฟล์เกม (ขั้นแรกด้านบน)
 2. โหลด **GJ-Materia-Installer.zip** จากหน้า [Releases](https://github.com/goodjoeth/gj-materia/releases) แตกไฟล์แล้วเปิด **GJ Materia Installer** (ครั้งแรก macOS อาจเตือนว่าไม่รู้จักผู้พัฒนา ให้คลิกขวาที่ตัวติดตั้ง → Open → Open)
-3. กด **ติดตั้ง** ตัวติดตั้งจะลง Command Line Tools และ Rosetta 2 ให้ถ้ายังไม่มี (macOS จะถามยืนยัน) โหลดเครื่องมือ build มาเก็บเอง (ไม่ต้องใช้ Homebrew) หาเกมให้ โหลดซอร์ส แล้ว build GJ Materia บน Mac ของคุณ (ครั้งแรก 20–40 นาที) แล้ววางไว้ใน Applications
+3. กด **ติดตั้ง** ตัวติดตั้งจะลง Command Line Tools ให้ถ้ายังไม่มี (macOS จะถามยืนยัน) โหลดเครื่องมือ build มาเก็บเอง (ไม่ต้องใช้ Homebrew) หาเกมให้ โหลดซอร์ส แล้ว build GJ Materia บน Mac ของคุณ (ครั้งแรก 20–40 นาที) แล้ววางไว้ใน Applications
 
 ตัวติดตั้งไม่มีโค้ดเกมและไม่ได้โหลดโค้ดเกมมา โค้ดเกมถูกแปลงจากเกมของคุณเองบนเครื่องคุณ ใช้ไดรฟ์ในเครื่อง หรือไดรฟ์ที่ฟอร์แมตเป็น APFS / Mac OS Extended (ไดรฟ์ exFAT ใช้ build ไม่ได้) พื้นที่ว่างประมาณ 15 GB
 
