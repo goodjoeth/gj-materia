@@ -1238,5 +1238,10 @@
 "ff7/universal_buttons.cpp",
 "        ff7_externals.current_dialog_string_pointer[window_index]);",
 "        GPTR(ff7_externals.current_dialog_string_pointer[window_index]));"
+],
+[
+"ff7_data.h",
+"\tff7_externals.swirl_grid = reinterpret_cast<vector4<short> (*)[9]>(get_absolute_value(ff7_externals.swirl_enter_sub_401810, 0xE) + 0xC88);",
+"\tff7_externals.swirl_grid = reinterpret_cast<vector4<short> (*)[9]>(GPTR(get_absolute_value(ff7_externals.swirl_enter_sub_401810, 0xE) + 0xC88));"
 ]
 ]
