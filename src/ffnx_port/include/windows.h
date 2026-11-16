@@ -530,7 +530,14 @@ extern "C" BOOL ClientToScreen(HWND w, LPPOINT p);
 #define _snprintf snprintf
 #define _vsnprintf vsnprintf
 #define sprintf_s(buf, n, ...) snprintf((buf), (n), __VA_ARGS__)
+// src may be a guest string pointer (gptr<char>): made a real char * before it goes through
+// "%s" (a variadic argument would carry the 32-bit guest address itself)
+#ifdef __cplusplus
+template <typename S> inline const char *ffnx_cstr(const S &s) { return (const char *)s; }
+#define strcpy_s(dst, n, src) (snprintf((dst), (n), "%s", ffnx_cstr(src)), 0)
+#else
 #define strcpy_s(dst, n, src) (snprintf((dst), (n), "%s", (src)), 0)
+#endif
 #define strcat_s(dst, n, src) (strncat((dst), (src), (n) - strlen(dst) - 1), 0)
 #define _strdup strdup
 #define _access access

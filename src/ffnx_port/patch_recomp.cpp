@@ -79,7 +79,7 @@ uint32_t replace_function_va(uint32_t offset, uint32_t host_va, const char *what
 // image as FFNx does; the re-lift's patched-code variant for that site (from the manifest)
 // then reaches the same hook.
 static uint32_t call_target_at(uint32_t site) {
-    const uint8_t *p = reinterpret_cast<const uint8_t *>(static_cast<uintptr_t>(site));
+    const uint8_t *p = reinterpret_cast<const uint8_t *>(GPTR(site));
     if (p[0] != 0xE8) return 0;
     int32_t rel; std::memcpy(&rel, p + 1, 4);
     return site + 5 + static_cast<uint32_t>(rel);
@@ -91,7 +91,7 @@ static int install_callsite(uint32_t site, uint32_t target, const char *what, ui
     return rc == 0;
 }
 void replace_call_va(uint32_t offset, uint32_t host_va, const char *what) {
-    const uint8_t op = *reinterpret_cast<const uint8_t *>(static_cast<uintptr_t>(offset));
+    const uint8_t op = *reinterpret_cast<const uint8_t *>(GPTR(offset));
     // A jump or call into game code that is not a lifted function (FFNx's own x86 written into
     // .text, as the multilanguage HUD code): write the rel32 as FFNx does on Windows. The
     // function holding the site then runs its patched bytes (a lifted variant, or the
@@ -99,14 +99,14 @@ void replace_call_va(uint32_t offset, uint32_t host_va, const char *what) {
     if (in_text(host_va) && (op == 0xE9 || (op == 0xE8 && !ff7_code_entry(host_va)))) {   // a jmp is never a call-site hook
         int32_t rel = static_cast<int32_t>(host_va - offset - 5);
         note_code_write(offset + 1, 4, what);
-        std::memcpy(reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(offset)) + 1, &rel, 4);
+        std::memcpy(reinterpret_cast<uint8_t *>(GPTR(offset)) + 1, &rel, 4);
         return;
     }
     if (op != 0xE8) ffnx_warning("%s: 0x%08X is not a call rel32 (0x%02X); hooked as a call site anyway\n", what, offset, op);
     record_hook(what, offset, host_va, install_callsite(offset, host_va, what, call_target_at(offset)));
 }
 uint32_t replace_call_function_va(uint32_t offset, uint32_t host_va, const char *what) {
-    uint8_t *p = reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(offset));
+    uint8_t *p = reinterpret_cast<uint8_t *>(GPTR(offset));
     const uint32_t orig = call_target_at(offset);   // 0 over a non-call: nothing to pop for
     if (p[0] != 0xE8) {
         uint8_t call[5] = { 0xE8 };
@@ -125,7 +125,7 @@ void note_divide_floor(uint32_t offset, int before, int divisor, int kept) {
 void note_code_write(uint32_t offset, uint32_t size, const char *what) {
     std::lock_guard<std::mutex> lk(g_lock);
     if (in_text(offset)) {
-        const uint8_t *p = (const uint8_t *)(uintptr_t)offset;   // called before the write
+        const uint8_t *p = (const uint8_t *)GPTR(offset);   // called before the write
         g_code_writes.push_back({ what, offset, size, std::vector<uint8_t>(p, p + size) });
     } else {
         g_data_writes++;
@@ -177,7 +177,7 @@ void step_fraction(uint32_t offset, uint32_t size, long long numer, int denom, c
     uint8_t b[8];
     put_le(b, q, size); declare_code_variant(offset, b, size);
     put_le(b, q + 1, size); declare_code_variant(offset, b, size);
-    put_le(b, q, size); std::memcpy((void *)(uintptr_t)offset, b, size);
+    put_le(b, q, size); std::memcpy((void *)GPTR(offset), b, size);
     std::lock_guard<std::mutex> lk(g_lock);
     g_steps.push_back(s);
 }
@@ -190,7 +190,7 @@ void step_alternate(uint32_t offset, const void *even, const void *odd, uint32_t
     step_rec s{ offset, size, true, 0, 1, {}, {}, 0 };
     std::memcpy(s.even, even, size);
     std::memcpy(s.odd, odd, size);
-    std::memcpy((void *)(uintptr_t)offset, even, size);
+    std::memcpy((void *)GPTR(offset), even, size);
     std::lock_guard<std::mutex> lk(g_lock);
     g_steps.push_back(s);
 }
@@ -232,7 +232,7 @@ static void verify_code_writes_locked() {
         if (w.size == 4 && (!std::strcmp(w.what, "patch_code_dword") || !std::strcmp(w.what, "patch_code_int") ||
                             !std::strcmp(w.what, "patch_code_uint")) && live_dword_site(w.offset))
             continue;
-        if (!std::memcmp(w.before.data(), (const void *)(uintptr_t)w.offset, w.size)) continue;   // nothing changed
+        if (!std::memcmp(w.before.data(), (const void *)GPTR(w.offset), w.size)) continue;   // nothing changed
         int rc = ff7_code_runnable(w.offset, w.size);
         if (rc == 1) continue;
         // every lifted function holding the bytes (inline copies too: src/host/ff7_hext.cpp)
@@ -273,14 +273,14 @@ void step_code() {
     if (g_verified < g_code_writes.size()) verify_code_writes_locked();
     const uint64_t k = g_step_frame++;
     for (const step_rec &s : g_steps) {
-        uint8_t *p = (uint8_t *)(uintptr_t)s.offset;
+        uint8_t *p = (uint8_t *)GPTR(s.offset);
         if (s.alternate) { std::memcpy(p, (k & 1) ? s.odd : s.even, s.size); continue; }
         // The step for tick k: floor((k+1)n/d) - floor(kn/d); k cycles over d ticks.
         const long long kk = (long long)(k % (uint64_t)s.denom);
         uint8_t b[8];
         put_le(b, floor_div((kk + 1) * s.numer, s.denom) - floor_div(kk * s.numer, s.denom), s.size);
         std::memcpy(p, b, s.size);
-        if (s.mirror) std::memcpy((void *)(uintptr_t)s.mirror, b, s.size);
+        if (s.mirror) std::memcpy((void *)GPTR(s.mirror), b, s.size);
     }
 }
 
@@ -327,17 +327,17 @@ static uint8_t check_is_call(const char *name, uint32_t base, uint32_t offset, u
 }
 
 uint32_t get_relative_call(uint32_t base, uint32_t offset) {
-    uint16_t instruction = *((uint16_t *)(uintptr_t)(base + offset));
+    uint16_t instruction = *((uint16_t *)GPTR(base + offset));
     uint8_t size = check_is_call(__func__, base, offset, instruction);
-    return base + *((uint32_t *)(uintptr_t)(base + offset + size)) + offset + 4 + size;
+    return base + *((uint32_t *)GPTR(base + offset + size)) + offset + 4 + size;
 }
 
 uint32_t get_absolute_value(uint32_t base, uint32_t offset) {
-    return *((uint32_t *)(uintptr_t)(base + offset));
+    return *((uint32_t *)GPTR(base + offset));
 }
 
 #define PATCH_WRITE(T, name) \
-    void name(uint32_t offset, T r) { note_code_write(offset, sizeof(r), #name); std::memcpy((void *)(uintptr_t)offset, &r, sizeof(r)); }
+    void name(uint32_t offset, T r) { note_code_write(offset, sizeof(r), #name); std::memcpy((void *)GPTR(offset), &r, sizeof(r)); }
 PATCH_WRITE(unsigned char, patch_code_byte)
 PATCH_WRITE(char, patch_code_char)
 PATCH_WRITE(WORD, patch_code_word)
@@ -351,12 +351,12 @@ PATCH_WRITE(double, patch_code_double)
 
 void memcpy_code(uint32_t offset, const void *data, uint32_t size) {
     note_code_write(offset, size, "memcpy_code");
-    std::memcpy((void *)(uintptr_t)offset, data, size);
+    std::memcpy((void *)GPTR(offset), data, size);
 }
 
 void memset_code(uint32_t offset, uint32_t val, uint32_t size) {
     note_code_write(offset, size, "memset_code");
-    std::memset((void *)(uintptr_t)offset, (int)val, size);
+    std::memset((void *)GPTR(offset), (int)val, size);
 }
 
 // From https://stackoverflow.com/a/21636483 (as in FFNx)
@@ -390,7 +390,7 @@ extern "C" int ffnx_recomp_write_manifest(const char *path) {
     for (size_t i = 0; i < g_code_writes.size(); i++) {
         const write_rec &w = g_code_writes[i];
         std::fprintf(f, "  {\"kind\": \"%s\", \"offset\": \"0x%08X\", \"bytes\": \"", w.what, w.offset);
-        for (uint32_t b = 0; b < w.size; b++) std::fprintf(f, "%02X", ((uint8_t *)(uintptr_t)w.offset)[b]);
+        for (uint32_t b = 0; b < w.size; b++) std::fprintf(f, "%02X", ((uint8_t *)GPTR(w.offset))[b]);
         std::fprintf(f, "\"}%s\n", i + 1 < g_code_writes.size() ? "," : "");
     }
     std::fprintf(f, " ],\n \"code_variants\": [\n");

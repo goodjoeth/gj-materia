@@ -48,7 +48,11 @@ endif()
 
 # FFmpeg (tools/build_ffmpeg_android.sh): FFNx's movie player and NTSC-J gamut code.
 if(APPLE)
-  set(FF7_FFMPEG_DIR "${FF7_ROOT}/build/ffmpeg-mac")      # tools/build_ffmpeg_mac.sh
+  if(CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+    set(FF7_FFMPEG_DIR "${FF7_ROOT}/build/ffmpeg-mac-arm64")   # FF7_ARCH=arm64 tools/build_ffmpeg_mac.sh
+  else()
+    set(FF7_FFMPEG_DIR "${FF7_ROOT}/build/ffmpeg-mac")      # tools/build_ffmpeg_mac.sh
+  endif()
 else()
   set(FF7_FFMPEG_DIR "${FF7_ROOT}/build/ffmpeg-android")
 endif()

@@ -19,8 +19,8 @@
 #define ACM_STREAMSIZEF_DESTINATION 0x1u
 #define ACMSTREAMHEADER_STATUSF_DONE     0x00010000u
 #define ACMSTREAMHEADER_STATUSF_PREPARED 0x00020000u
-#define W32(p) (*(uint32_t *)(uintptr_t)(p))
-#define W16(p) (*(uint16_t *)(uintptr_t)(p))
+#define W32(p) (*(uint32_t *)ADDR(p))
+#define W16(p) (*(uint16_t *)ADDR(p))
 
 typedef struct adpcm_stream {
     uint16_t channels, block_align, samples_per_block, ncoef;
@@ -94,13 +94,13 @@ static void a_acmStreamOpen(void) {
             for (int i = 0; i < s->ncoef; i++) { s->coef[i][0] = (int16_t)W16(src + 22 + 4 * i); s->coef[i][1] = (int16_t)W16(src + 24 + 4 * i); }
         }
     }
-    if (phas) W32(phas) = (uint32_t)(uintptr_t)s;
+    if (phas) W32(phas) = GVA(s);
     RET(MMSYSERR_NOERROR, 8);
 }
 
 /* acmStreamSize(has, cbInput, pdwOutputBytes, fdwSize) */
 static void a_acmStreamSize(void) {
-    adpcm_stream *s = (adpcm_stream *)(uintptr_t)A32(0);
+    adpcm_stream *s = (adpcm_stream *)GPTR(A32(0));
     uint32_t in = A32(1), pout = A32(2), fl = A32(3);
     if (!s || !pout) RET(MMSYSERR_INVALPARAM, 4);
     uint32_t frame = 2u * s->channels;
@@ -132,12 +132,12 @@ static void a_acmStreamUnprepareHeader(void) {
 
 /* acmStreamConvert(has, pash, fdwConvert) */
 static void a_acmStreamConvert(void) {
-    adpcm_stream *s = (adpcm_stream *)(uintptr_t)A32(0);
+    adpcm_stream *s = (adpcm_stream *)GPTR(A32(0));
     uint32_t h = A32(1);
     if (!s || !h) RET(MMSYSERR_INVALPARAM, 3);
-    const uint8_t *in = (const uint8_t *)(uintptr_t)W32(h + 12);
+    const uint8_t *in = (const uint8_t *)GPTR(W32(h + 12));
     uint32_t in_len = W32(h + 16);
-    uint8_t *out = (uint8_t *)(uintptr_t)W32(h + 28);
+    uint8_t *out = (uint8_t *)GPTR(W32(h + 28));
     uint32_t out_len = W32(h + 32);
     uint32_t frame = 2u * s->channels, used_in = 0, used_out = 0;
     if (s->pcm_passthrough) {
@@ -165,7 +165,7 @@ static void a_acmStreamConvert(void) {
 
 /* acmStreamClose(has, fdwClose) */
 static void a_acmStreamClose(void) {
-    void *s = (void *)(uintptr_t)A32(0);
+    void *s = (void *)GPTR(A32(0));
     if (s) guest_free(s);
     RET(MMSYSERR_NOERROR, 2);
 }

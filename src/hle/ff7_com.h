@@ -21,8 +21,8 @@ uint32_t ff7_com_vtable(const ff7_com_method *methods, int count);
 /* A new object: [vtable][refcount = 1][state_size bytes of zeroed state]. */
 uint32_t ff7_com_new(uint32_t vtable, uint32_t state_size);
 /* Object state: the bytes after vtable and refcount. */
-#define FF7_COM_STATE(obj) ((uint8_t *)(uintptr_t)(obj) + 8)
-#define FF7_COM_REFS(obj)  (((uint32_t *)(uintptr_t)(obj))[1])
+#define FF7_COM_STATE(obj) ((uint8_t *)GPTR(obj) + 8)
+#define FF7_COM_REFS(obj)  (((uint32_t *)GPTR(obj))[1])
 
 /* A guest copy of a host string (for callbacks that receive strings). */
 uint32_t ff7_guest_strdup(const char *s);

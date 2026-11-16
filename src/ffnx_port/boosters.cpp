@@ -56,9 +56,9 @@ uint32_t scaled(uint32_t v, int mult, uint32_t cap) {
 }
 
 void spoils_hook() {
-    uint32_t &exp = *reinterpret_cast<uint32_t *>(static_cast<uintptr_t>(k_total_exp));
-    uint32_t &ap = *reinterpret_cast<uint32_t *>(static_cast<uintptr_t>(k_total_ap));
-    uint32_t &gil = *reinterpret_cast<uint32_t *>(static_cast<uintptr_t>(k_total_gil));
+    uint32_t &exp = *reinterpret_cast<uint32_t *>(GPTR(k_total_exp));
+    uint32_t &ap = *reinterpret_cast<uint32_t *>(GPTR(k_total_ap));
+    uint32_t &gil = *reinterpret_cast<uint32_t *>(GPTR(k_total_gil));
     const uint32_t e0 = exp, a0 = ap, g0 = gil;
     // caps: a character's EXP stops at 9,999,999 and a materia's AP at 16,777,215 anyway; the
     // results screen adds the gil without a cap, so the party's stops at the game's 999,999,999
@@ -120,7 +120,7 @@ void read_defaults() {
     }
     std::fclose(f);
     if (g_exp_mult > 1 || g_ap_mult > 1 || g_gil_mult > 1) {
-        const uint8_t *site = reinterpret_cast<const uint8_t *>(static_cast<uintptr_t>(k_spoils_call));
+        const uint8_t *site = reinterpret_cast<const uint8_t *>(GPTR(k_spoils_call));
         int32_t rel; std::memcpy(&rel, site + 1, 4);
         if (site[0] == 0xE8 && k_spoils_call + 5 + (uint32_t)rel == k_spoils_callee) replace_call(k_spoils_call, &spoils_hook);
         else std::fprintf(stderr, "[boosters] battle spoils code changed (a mod?): gil/EXP/AP boosters off\n");
@@ -234,9 +234,9 @@ extern "C" void ff7_boosters_frame() {
         // the battle's two other copies (1.02 US): the 0x44-byte party records beside the ATB
         // gauge (HP +0x38, MP +0x3A) and the 0x440-byte character records at 0xDBA498 (HP +0x10,
         // max +0x12, MP +0x14, max +0x16), which the HP/MP numbers are drawn from
-        uint16_t *rec = (uint16_t *)(uintptr_t)(k_party_rec + k_party_rec_stride * slot);
+        uint16_t *rec = (uint16_t *)GPTR(k_party_rec + k_party_rec_stride * slot);
         if (rec[1] > 0) { rec[0] = rec[1]; rec[2] = rec[3]; }
-        uint16_t *atb_rec = (uint16_t *)(uintptr_t)(k_atb + k_atb_stride * slot + 0x38);
+        uint16_t *atb_rec = (uint16_t *)GPTR(k_atb + k_atb_stride * slot + 0x38);
         if (rec[1] > 0) { atb_rec[0] = rec[1]; atb_rec[1] = rec[3]; }
         // the Limit gauge in battle. +0x1B of the character record is only the gauge as drawn: the
         // game raises it towards the value at 0x9A8DC2 + 0x34 * slot (copied from 0x9A8DC0) and,
@@ -245,14 +245,14 @@ extern "C" void ff7_boosters_frame() {
         // after the first Limit (#44). Set the value itself, as Cait Sith's Fury Brand does
         // (0x5DD148), and let the game fill the gauge and make the Limit ready.
         if (rec[1] > 0) {
-            uint16_t *limit = (uint16_t *)(uintptr_t)(k_limit + k_limit_stride * slot);
+            uint16_t *limit = (uint16_t *)GPTR(k_limit + k_limit_stride * slot);
             limit[0] = 0xFF;   // 0x9A8DC0: the value
             limit[1] = 0xFF;   // 0x9A8DC2: what the gauge rises to
         }
     }
     // the party's "Limit ready" bits (0x4375CE sets 1 << slot), logged when they change
     static uint16_t ready_seen = 0xFFFF;
-    const uint16_t ready = *(const uint16_t *)(uintptr_t)k_limit_ready;
+    const uint16_t ready = *(const uint16_t *)GPTR(k_limit_ready);
     if (ready != ready_seen) {
         std::fprintf(stderr, "[boosters] Limit ready bits %#x\n", ready);
         ready_seen = ready;

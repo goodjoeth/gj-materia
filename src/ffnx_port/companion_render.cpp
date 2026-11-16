@@ -291,7 +291,7 @@ extern "C" void ff7_companion_battle_tick() {
     static int trace = -1;
     if (trace < 0) trace = std::getenv("FF7_INPUT_TRACE") != nullptr;
     if (trace && g_active) {
-        auto m = [](uint32_t a) { return *(const volatile uint32_t *)(uintptr_t)a; };
+        auto m = [](uint32_t a) { return *(const volatile uint32_t *)GPTR(a); };
         static uint32_t last[7];
         const uint32_t now[7] = { m(0x9A85D4), m(0x9A85E0), m(0x9A8728), m(0x9A872C), m(0x9A8734), m(0x9A8730), m(0x9A8714) };
         if (std::memcmp(now, last, sizeof now) && (now[0] || last[0] || now[1]))

@@ -1,4 +1,5 @@
 // runtimevar.cpp - see runtimevar.hpp.
+#include "../host/ff7_guest_space.h"   // FF7_HOST: guest address -> host pointer
 #include "runtimevar.hpp"
 #include <cctype>
 #include <cstdlib>
@@ -15,7 +16,7 @@ namespace {
 // 7thHeaven.var); anything outside the mapped image is refused rather than faulted on.
 bool read_in_place(uint32_t va, void *out, size_t n) {
     if (va < 0x00400000u || (uint64_t)va + n > 0x01000000u) return false;
-    std::memcpy(out, reinterpret_cast<const void *>(static_cast<uintptr_t>(va)), n);
+    std::memcpy(out, reinterpret_cast<const void *>(FF7_HOST(va)), n);
     return true;
 }
 MemoryReader g_reader = read_in_place;

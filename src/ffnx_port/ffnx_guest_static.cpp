@@ -17,6 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include "../host/ff7_guest_space.h"   // the offset build: guest addresses are offsets into a reserved range
 #undef fopen   // ffnx_prelude.h's guest-path fopen: these are host paths, read at load time
 
 namespace {
@@ -30,9 +31,10 @@ uintptr_t g_next;
 std::mutex g_lock;
 
 bool reserve(uintptr_t at) {
-    void *p = mmap(reinterpret_cast<void *>(at), k_size, PROT_READ | PROT_WRITE,
+    void *want = FF7_HOST(at);
+    void *p = mmap(want, k_size, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
-    if (p == reinterpret_cast<void *>(at)) return true;
+    if (p == want) return true;
     if (p != MAP_FAILED) munmap(p, k_size);   // a kernel without MAP_FIXED_NOREPLACE: elsewhere
     return false;
 }
@@ -71,6 +73,7 @@ uintptr_t free_gap(uintptr_t lo, uintptr_t hi) {
 
 void *ffnx_guest_static_alloc(size_t n, size_t align) {
     std::lock_guard<std::mutex> lk(g_lock);
+    ff7_guest_space_init();
     if (!g_base) {
         if (simulate_taken() && reserve(k_usual))
             std::fprintf(stderr, "[ffnx] test: 0x%08lX occupied\n", (unsigned long)k_usual);
@@ -100,7 +103,7 @@ void *ffnx_guest_static_alloc(size_t n, size_t align) {
         std::abort();
     }
     g_next = at + n;
-    return reinterpret_cast<void *>(at);   // zeroed (fresh anonymous pages)
+    return FF7_HOST(at);   // zeroed (fresh anonymous pages)
 }
 
 // Where the block is (save states record it); its usual place before anything was allocated.

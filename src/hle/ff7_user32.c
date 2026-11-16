@@ -20,7 +20,7 @@ static void u_MessageBoxA(void) {
     RET(kind == 3 || kind == 4 ? 6u : 1u, 4);
 }
 
-#define W32(p) (*(uint32_t *)(uintptr_t)(p))
+#define W32(p) (*(uint32_t *)ADDR(p))
 
 /* The display the guest is told about: the Thor's main screen. */
 #define SCREEN_W 1920

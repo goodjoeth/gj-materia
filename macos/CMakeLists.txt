@@ -7,9 +7,15 @@
 #   cmake -S macos -B build/macos -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 #   cmake --build build/macos
 cmake_minimum_required(VERSION 3.20)
-set(CMAKE_OSX_ARCHITECTURES x86_64 CACHE STRING "" FORCE)
+# FF7_ARCH=arm64: native on Apple silicon, the guest's memory at an offset (FF7_OFFSET_MEMORY,
+# src/host/ff7_guest_space.h) instead of at its own addresses.
+set(FF7_ARCH "x86_64" CACHE STRING "x86_64 (Rosetta 2 on Apple silicon) or arm64 (native)")
+set(CMAKE_OSX_ARCHITECTURES ${FF7_ARCH} CACHE STRING "" FORCE)
 set(CMAKE_OSX_DEPLOYMENT_TARGET 13.0 CACHE STRING "" FORCE)   # SwiftUI NavigationSplitView
-set(CMAKE_Swift_COMPILER_TARGET x86_64-apple-macos13.0 CACHE STRING "" FORCE)
+set(CMAKE_Swift_COMPILER_TARGET ${FF7_ARCH}-apple-macos13.0 CACHE STRING "" FORCE)
+if(FF7_ARCH STREQUAL "arm64")
+  set(FF7_OFFSET_MEMORY ON CACHE BOOL "" FORCE)
+endif()
 project(FF7RecompMac C CXX OBJC OBJCXX ASM Swift)
 get_filename_component(FF7_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-ffile-prefix-map=${FF7_ROOT}=ff7recomp>")
@@ -51,9 +57,14 @@ set(FF7_LAUNCHER_SOURCES
 set(FF7_VAR "${FF7_ROOT}/external/7th-Heaven/AppUI/Resources/7thHeaven.var")
 set_source_files_properties("${FF7_VAR}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 
+if(FF7_OFFSET_MEMORY)
+  set(FF7_GUEST_RESERVE "")
+else()
+  set(FF7_GUEST_RESERVE "${FF7_ROOT}/src/mac/guest_reserve.s")
+endif()
 add_executable(FF7Recomp MACOSX_BUNDLE
   "${FF7_ROOT}/src/mac/ff7_mac_main.mm"
-  "${FF7_ROOT}/src/mac/guest_reserve.s"
+  ${FF7_GUEST_RESERVE}
   ${FF7_LAUNCHER_SOURCES}
   "${FF7_VAR}")
 target_include_directories(FF7Recomp PRIVATE "${FF7_ROOT}/src/mods" "${FF7_LZMA}")
@@ -63,13 +74,15 @@ target_include_directories(FF7Recomp PRIVATE "${FF7_ROOT}/src/host")
 target_link_libraries(FF7Recomp PRIVATE ff7_core ffnx
   "-framework Cocoa" "-framework Metal" "-framework QuartzCore" "-framework GameController" "-framework CoreHaptics"
   "-framework AudioToolbox" "-framework CoreAudio" "-framework IOKit" "-framework SwiftUI" "-framework AppKit")
-# Non-PIE at 4 GB, with the guest's [0x10000, 0x80000000) reserved by FF7GUEST.
-target_link_options(FF7Recomp PRIVATE
-  "LINKER:-no_pie"
-  "LINKER:-pagezero_size,0x10000"
-  "LINKER:-image_base,0x100000000"
-  "LINKER:-segaddr,FF7GUEST,0x10000"
-  "LINKER:-segprot,FF7GUEST,rw,rw")
+# x86_64: non-PIE at 4 GB, with the guest's [0x10000, 0x80000000) reserved by FF7GUEST.
+if(NOT FF7_OFFSET_MEMORY)
+  target_link_options(FF7Recomp PRIVATE
+    "LINKER:-no_pie"
+    "LINKER:-pagezero_size,0x10000"
+    "LINKER:-image_base,0x100000000"
+    "LINKER:-segaddr,FF7GUEST,0x10000"
+    "LINKER:-segprot,FF7GUEST,rw,rw")
+endif()
 set_target_properties(FF7Recomp PROPERTIES
   OUTPUT_NAME "GJ Materia"
   MACOSX_BUNDLE_BUNDLE_NAME "GJ Materia"

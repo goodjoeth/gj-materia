@@ -160,7 +160,7 @@ void quickboot_frame() {
         break;
     case MODE_MAIN_MENU: {
         if (in_mode < 800) break;                            // the menu fading in
-        const uint8_t cursor = *(volatile uint8_t *)(uintptr_t)TITLE_CURSOR;
+        const uint8_t cursor = *(volatile uint8_t *)GPTR(TITLE_CURSOR);
         if (g_title_presses == 0) {
             if (cursor != g_target) press(PAD_UP, t, 300);
             else if (t - g_last_press >= 300) { press(PAD_OK, t, 0); g_title_presses = 1; }

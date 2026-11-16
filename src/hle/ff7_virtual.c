@@ -36,9 +36,9 @@ static int g_nreg;
 static uint32_t g_vm_lo = FF7_VM_LO, g_vm_hi = FF7_VM_HI;
 
 int ff7_virtual_init(uint32_t lo, uint32_t hi) {
-    void *p = mmap((void *)(uintptr_t)lo, hi - lo, PROT_READ | PROT_WRITE,
+    void *p = mmap((void *)GPTR(lo), hi - lo, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE, -1, 0);
-    if (p == MAP_FAILED || (uintptr_t)p != lo) {
+    if (p == MAP_FAILED || GVA(p) != lo) {
         fprintf(stderr, "[virtual] cannot map [0x%08X,0x%08X)\n", lo, hi);
         return -1;
     }
@@ -106,7 +106,7 @@ static void k_VirtualFree(void) {
     if (i < 0) RET(0, 3);
     if (type & MEM_RELEASE) {
         if (addr != g_reg[i].base || size) RET(0, 3);
-        memset((void *)(uintptr_t)g_reg[i].base, 0, g_reg[i].size);
+        memset((void *)GPTR(g_reg[i].base), 0, g_reg[i].size);
         memmove(&g_reg[i], &g_reg[i + 1], sizeof g_reg[0] * (size_t)(g_nreg - i - 1));
         g_nreg--;
         RET(1, 3);
@@ -114,7 +114,7 @@ static void k_VirtualFree(void) {
     if (type & MEM_DECOMMIT) {
         uint32_t lo = addr & ~(PAGE - 1);
         uint32_t hi = size ? (addr + size + PAGE - 1) & ~(PAGE - 1) : g_reg[i].base + g_reg[i].size;
-        memset((void *)(uintptr_t)lo, 0, hi - lo);
+        memset((void *)GPTR(lo), 0, hi - lo);
         RET(1, 3);
     }
     RET(0, 3);
@@ -125,7 +125,7 @@ static void k_VirtualFree(void) {
 static void k_VirtualQuery(void) {
     uint32_t addr = A32(0), mbi = A32(1), len = A32(2);
     if (len < 28) RET(0, 3);
-    uint32_t *m = (uint32_t *)(uintptr_t)mbi;
+    uint32_t *m = (uint32_t *)GPTR(mbi);
     int i = region_of(addr);
     m[0] = addr & ~(PAGE - 1);
     if (i >= 0) {

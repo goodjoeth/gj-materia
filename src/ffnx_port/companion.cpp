@@ -66,7 +66,7 @@ constexpr uint32_t k_field_uc = 0xCC040C;
 // A cutscene: a movie playing, or a field scene running with the player's control taken.
 bool cinematic(int mode) {
     if (ff7_externals.movie_object && ff7_externals.movie_object->is_playing) return true;
-    return mode == MODE_FIELD && *(const volatile uint8_t *)(uintptr_t)k_field_uc != 0;
+    return mode == MODE_FIELD && *(const volatile uint8_t *)GPTR(k_field_uc) != 0;
 }
 
 }  // namespace
@@ -153,7 +153,7 @@ std::string build_snapshot() {
         if (battle) {
             const battle_actor_vars &a = ff7_externals.battle_context->actor_vars[slot];
             if (a.maxHP > 0) { hp = (unsigned)a.currentHP; mhp = (unsigned)a.maxHP; mp = a.currentMP; mmp = a.maxMP; }
-            atb = *(const uint16_t *)(uintptr_t)(k_atb + k_atb_stride * slot);
+            atb = *(const uint16_t *)GPTR(k_atb + k_atb_stride * slot);
         }
         snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"lv\":%d,\"hp\":%u,\"mhp\":%u,\"mp\":%u,\"mmp\":%u,\"limit\":%u,\"limlv\":%d,\"atb\":%d}",
                  first ? "" : ",", ff7_name(c.name, sizeof c.name).c_str(), (int)(unsigned char)c.level,
@@ -171,7 +171,7 @@ std::string build_snapshot() {
             if (a.maxHP <= 0) continue;
             // the scene's enemy types (up to 3, 0xB8 bytes each, name first); the actor's
             // index is its type (1.02 US)
-            std::string name = a.index < 3 ? ff7_name((const char *)(uintptr_t)(k_scene_enemies + 0xB8u * a.index), 32) : "";
+            std::string name = a.index < 3 ? ff7_name((const char *)GPTR(k_scene_enemies + 0xB8u * a.index), 32) : "";
             snprintf(b, sizeof b, "%s{\"slot\":%d,\"name\":\"%s\",\"hp\":%d,\"mhp\":%d,\"lv\":%d}", first ? "" : ",", i - 3,
                      name.c_str(), a.currentHP, a.maxHP, (int)a.level);
             j += b;

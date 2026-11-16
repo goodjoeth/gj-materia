@@ -397,8 +397,37 @@ for _vs in ('../misc/FFNx.vert', '../misc/FFNx.lighting.vert'):
 '''    #if BGFX_SHADER_LANGUAGE_SPIRV || BGFX_SHADER_LANGUAGE_METAL   // FF7Recomp: Metal's origin is top-left too
     #else'''))
 
+# The offset build (Apple arm64, FF7_OFFSET_MEMORY): FFNx keeps ~550 of the game's addresses as
+# raw pointers (ff7_data.h: ff7_externals.x = (T *)get_absolute_value(...)). Each becomes a
+# pointer into guest memory through GPTR (recomp_types.h; the same number in the flat builds).
+import re as _re
+_EXT_PTR = _re.compile(r'^(\s*(?:ff7|common)_externals\.\w+(?:\[[^\]]*\])?\s*=\s*\((?:const\s+)?[A-Za-z_][\w<>: ]*\s*\*+\s*\))\s*(?!GPTR\()(.+?);(\s*(?://.*)?)$')
+def guest_pointer_pass():
+    total = 0
+    for name in ('ff7_data.h', 'externals_102_us.h', 'externals_102_fr.h', 'externals_102_de.h', 'externals_102_sp.h'):
+        total += guest_pointer_file(os.path.join(SRC, name))
+    return total
+
+
+def guest_pointer_file(p):
+    lines = open(p, encoding='utf-8', errors='surrogateescape').read().split('\n')
+    out, n = [], 0
+    for l in lines:
+        m = _EXT_PTR.match(l)
+        # two fields computed from fields that are already pointers into game memory
+        if m and ('field_file_buffer)' in l or '(char *)ff7_externals.word_CC16E8' in l): m = None
+        if m:
+            l = f'{m.group(1)}GPTR({m.group(2)});{m.group(3)}'
+            n += 1
+        out.append(l)
+    if n:
+        open(p, 'w', encoding='utf-8', errors='surrogateescape').write('\n'.join(out))
+    return n
+
+
 def main():
-    n = 0
+    n = guest_pointer_pass()
+    if n: print(f'ffnx_edit_mac: {n} game addresses in ff7_data.h / externals_102_*.h made guest pointers')
     for name, old, new, *how in EDITS:
         p = os.path.normpath(os.path.join(SRC, name))
         old, new = old.replace('\\n', '\n'), new.replace('\\n', '\n')
@@ -411,6 +440,22 @@ def main():
         open(p, 'w', encoding='utf-8', errors='surrogateescape').write(s)
         n += 1
     print(f'ffnx_edit_mac: {n} edits applied')
+    # the offset build's casts (tools/ffnx_offset_fix.py made the list from the compiler's warnings)
+    import json
+    off = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ffnx_offset_edits.json')
+    if os.path.exists(off):
+        k = 0
+        for name, old, new in json.load(open(off, encoding='utf-8')):
+            p = os.path.join(SRC, name)
+            s = open(p, encoding='utf-8', errors='surrogateescape').read()
+            if new in s and old not in s:
+                continue
+            if old not in s:
+                sys.exit(f'ffnx_edit_mac: offset-build line not found in {name}:\n{old.strip()[:120]}')
+            s = s.replace(old, new)
+            open(p, 'w', encoding='utf-8', errors='surrogateescape').write(s)
+            k += 1
+        print(f'ffnx_edit_mac: {k} offset-build cast edits applied')
 
 
 if __name__ == '__main__':

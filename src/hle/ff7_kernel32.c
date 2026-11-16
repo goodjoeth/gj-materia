@@ -28,8 +28,8 @@
 #include "ff7_hle.h"
 
 #define INVALID_HANDLE 0xFFFFFFFFu
-#define W16(p)  (*(uint16_t *)(uintptr_t)(p))
-#define W32(p)  (*(uint32_t *)(uintptr_t)(p))
+#define W16(p)  (*(uint16_t *)ADDR(p))
+#define W32(p)  (*(uint32_t *)ADDR(p))
 
 static uint32_t guest_tid(void) { return (uint32_t)gettid(); }
 
@@ -69,7 +69,7 @@ static void k_TlsFree(void) { uint32_t i = A32(0); if (i < TLS_SLOTS) g_tls_used
  * Owned elsewhere -> release the machine so the owner can run, then retry. */
 static void k_InitializeCriticalSection(void) {
     uint32_t cs = A32(0);
-    memset((void *)(uintptr_t)cs, 0, 24);
+    memset((void *)GPTR(cs), 0, 24);
     W32(cs + 4) = 0xFFFFFFFFu;
     RETV(1);
 }
@@ -110,16 +110,16 @@ static void k_GetCommandLineA(void) {
         static const char cmd[] = "ff7_en.exe";
         char *p = (char *)guest_malloc(sizeof cmd);
         memcpy(p, cmd, sizeof cmd);
-        g_cmdline_va = (uint32_t)(uintptr_t)p;
+        g_cmdline_va = GVA(p);
     }
     RET(g_cmdline_va, 0);
 }
 static void k_GetEnvironmentStrings(void) {
-    if (!g_env_a_va) g_env_a_va = (uint32_t)(uintptr_t)guest_calloc(1, 4);   /* "\0\0" */
+    if (!g_env_a_va) g_env_a_va = GVA(guest_calloc(1, 4));   /* "\0\0" */
     RET(g_env_a_va, 0);
 }
 static void k_GetEnvironmentStringsW(void) {
-    if (!g_env_w_va) g_env_w_va = (uint32_t)(uintptr_t)guest_calloc(1, 8);   /* L"\0\0" */
+    if (!g_env_w_va) g_env_w_va = GVA(guest_calloc(1, 8));   /* L"\0\0" */
     RET(g_env_w_va, 0);
 }
 static void k_FreeEnvironmentStrings(void) { RET(1, 1); }    /* the block is kept for reuse */
@@ -160,7 +160,7 @@ static void k_GetProcAddress(void) {
         fprintf(stderr, "[ff7] GetProcAddress(0x%08X, #%u) -> NULL\n", A32(0), name);
         RET(0, 2);
     }
-    const char *s = (const char *)(uintptr_t)name;
+    const char *s = (const char *)GPTR(name);
     uint32_t va = hle_resolve(s);
     fprintf(stderr, "[ff7] GetProcAddress(0x%08X, \"%s\") -> 0x%08X\n", A32(0), s, va);
     RET(va, 2);
@@ -206,11 +206,11 @@ static void k_FormatMessageA(void) {            /* (flags, src, id, lang, buf, s
     if (flags & 0x100u) {                       /* FORMAT_MESSAGE_ALLOCATE_BUFFER */
         char *p = (char *)guest_malloc((size_t)n + 1);
         memcpy(p, msg, (size_t)n + 1);
-        W32(buf) = (uint32_t)(uintptr_t)p;
+        W32(buf) = GVA(p);
         RET((uint32_t)n, 7);
     }
     if (!buf || size <= (uint32_t)n) RET(0, 7);
-    memcpy((void *)(uintptr_t)buf, msg, (size_t)n + 1);
+    memcpy((void *)GPTR(buf), msg, (size_t)n + 1);
     RET((uint32_t)n, 7);
 }
 /* GetVolumeInformationA(root, name, nameSize, serial*, maxComp*, flags*, fs, fsSize).
@@ -218,11 +218,11 @@ static void k_FormatMessageA(void) {            /* (flags, src, id, lang, buf, s
  * disc 1 so an unpatched path still passes. */
 static void k_GetVolumeInformationA(void) {
     uint32_t name = A32(1), nsz = A32(2), serial = A32(3), maxc = A32(4), fl = A32(5), fs = A32(6), fsz = A32(7);
-    if (name && nsz) snprintf((char *)(uintptr_t)name, nsz, "FF7DISC1");
+    if (name && nsz) snprintf((char *)GPTR(name), nsz, "FF7DISC1");
     if (serial) W32(serial) = 0x07071997u;
     if (maxc) W32(maxc) = 255;
     if (fl) W32(fl) = 0;
-    if (fs && fsz) snprintf((char *)(uintptr_t)fs, fsz, "CDFS");
+    if (fs && fsz) snprintf((char *)GPTR(fs), fsz, "CDFS");
     RET(1, 8);
 }
 
@@ -295,10 +295,10 @@ static void k_GetFullPathNameA(void) {
     else snprintf(full, sizeof full, "%s\\%s", FF7_GUEST_ROOT, name[0] == '.' && name[1] == '\\' ? name + 2 : name);
     uint32_t n = (uint32_t)strlen(full);
     if (!buf || size <= n) RET(n + 1, 4);
-    memcpy((void *)(uintptr_t)buf, full, n + 1);
+    memcpy((void *)GPTR(buf), full, n + 1);
     if (fp) {
-        char *last = strrchr((char *)(uintptr_t)buf, '\\');
-        W32(fp) = last ? (uint32_t)(uintptr_t)(last + 1) : buf;
+        char *last = strrchr((char *)GPTR(buf), '\\');
+        W32(fp) = last ? GVA(last + 1) : buf;
     }
     RET(n, 4);
 }
@@ -317,7 +317,7 @@ static int find_next(int i, uint32_t data) {
         snprintf(full, sizeof full, "%s/%s", g_find[i].dir, e->d_name);
         struct stat st;
         if (stat(full, &st) != 0) continue;
-        memset((void *)(uintptr_t)data, 0, 0x140);
+        memset((void *)GPTR(data), 0, 0x140);
         W32(data) = S_ISDIR(st.st_mode) ? 0x10u : 0x80u;     /* DIRECTORY : NORMAL */
         uint64_t ft = unix_to_filetime(st.st_mtime);
         put_filetime(data + 0x04, ft);
@@ -325,7 +325,7 @@ static int find_next(int i, uint32_t data) {
         put_filetime(data + 0x14, ft);
         W32(data + 0x1C) = (uint32_t)((uint64_t)st.st_size >> 32);
         W32(data + 0x20) = (uint32_t)st.st_size;
-        snprintf((char *)(uintptr_t)(data + 0x2C), 260, "%s", e->d_name);
+        snprintf((char *)GPTR(data + 0x2C), 260, "%s", e->d_name);
         return 1;
     }
     return 0;
@@ -403,14 +403,14 @@ static void k_CompareStringW(void) {
 static void k_LCMapStringA(void) {          /* (lcid, flags, src, n, dst, dstn) */
     uint32_t flags = A32(1), src = A32(2), dst = A32(4);
     int n = (int)A32(3), dn = (int)A32(5);
-    if (n < 0) n = (int)strlen((char *)(uintptr_t)src) + 1;
+    if (n < 0) n = (int)strlen((char *)GPTR(src)) + 1;
     if (!dn) RET((uint32_t)n, 6);
     if (dn < n) RET(0, 6);
     for (int i = 0; i < n; i++) {
-        int c = ((uint8_t *)(uintptr_t)src)[i];
+        int c = ((uint8_t *)GPTR(src))[i];
         if (flags & LCMAP_LOWERCASE) c = tolower(c);
         if (flags & LCMAP_UPPERCASE) c = toupper(c);
-        ((uint8_t *)(uintptr_t)dst)[i] = (uint8_t)c;
+        ((uint8_t *)GPTR(dst))[i] = (uint8_t)c;
     }
     RET((uint32_t)n, 6);
 }
@@ -455,7 +455,7 @@ static void k_GetLocaleInfoA(void) {        /* (lcid, type, buf, n) */
     uint32_t buf = A32(2), n = A32(3), need = (uint32_t)strlen(v) + 1;
     if (!n) RET(need, 4);
     if (n < need) RET(0, 4);
-    memcpy((void *)(uintptr_t)buf, v, need);
+    memcpy((void *)GPTR(buf), v, need);
     RET(need, 4);
 }
 static void k_GetLocaleInfoW(void) {
@@ -474,7 +474,7 @@ static void k_CoInitialize(void) { RET(0, 1); }                       /* S_OK */
 static void k_CoUninitialize(void) { RETV(0); }
 static void k_CoCreateInstance(void) {   /* (rclsid, outer, ctx, riid, ppv) */
     uint32_t ppv = A32(4);
-    if (ppv) *(uint32_t *)(uintptr_t)ppv = 0;
+    if (ppv) *(uint32_t *)GPTR(ppv) = 0;
     RET(0x80040154u, 5);                                               /* REGDB_E_CLASSNOTREG */
 }
 

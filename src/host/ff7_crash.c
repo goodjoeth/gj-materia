@@ -42,7 +42,11 @@ static _Unwind_Reason_Code bt_frame(struct _Unwind_Context *ctx, void *arg) {
 
 __attribute__((weak)) void ff7_interp_dump(void);    /* src/interp/x86_interp.c */
 static void on_fault(int sig, siginfo_t *si, void *uc) {
-#if defined(__aarch64__)
+#if defined(__aarch64__) && defined(__APPLE__)
+    ucontext_t *u = (ucontext_t *)uc;
+    host_where("host pc", (uintptr_t)u->uc_mcontext->__ss.__pc);
+    host_where("host lr", (uintptr_t)u->uc_mcontext->__ss.__lr);
+#elif defined(__aarch64__)
     ucontext_t *u = (ucontext_t *)uc;
     host_where("host pc", (uintptr_t)u->uc_mcontext.pc);
     host_where("host lr", (uintptr_t)u->uc_mcontext.regs[30]);
@@ -54,8 +58,7 @@ static void on_fault(int sig, siginfo_t *si, void *uc) {
     _Unwind_Backtrace(bt_frame, NULL);
     fprintf(stderr, "[ff7] FAULT: signal %d (%s) at host address %p",
             sig, strsignal(sig), si->si_addr);
-    uintptr_t a = (uintptr_t)si->si_addr;
-    if (a <= 0xFFFFFFFFu) fprintf(stderr, " (guest VA 0x%08X)", (unsigned)a);
+    if (IS_GUEST(si->si_addr)) fprintf(stderr, " (guest VA 0x%08X)", (unsigned)GVA(si->si_addr));
     fprintf(stderr, "\n  in lifted func 0x%08X, last import %s\n", g_cur_func, g_cur_import ? g_cur_import : "(none)");
     fprintf(stderr, "  eax=%08X ebx=%08X ecx=%08X edx=%08X esi=%08X edi=%08X ebp=%08X esp=%08X\n",
             g_eax, g_ebx, g_ecx, g_edx, g_esi, g_edi, g_ebp, g_esp);
@@ -144,10 +147,10 @@ static void *memdiff(void *arg) {
     (void)arg;
     static uint8_t prev[MD_HI - MD_LO];
     sleep(10);                       /* started at boot: the exe is mapped a moment later */
-    memcpy(prev, (const void *)(uintptr_t)MD_LO, sizeof prev);
+    memcpy(prev, (const void *)GPTR(MD_LO), sizeof prev);
     for (int round = 0;; round++) {
         sleep(2);
-        const uint8_t *cur = (const uint8_t *)(uintptr_t)MD_LO;
+        const uint8_t *cur = (const uint8_t *)GPTR(MD_LO);
         int shown = 0;
         for (uint32_t i = 0; i < sizeof prev; i++) {
             uint8_t a = prev[i], b = cur[i];
@@ -170,12 +173,12 @@ static void *memdiff_counters(void *arg) {
     static uint16_t prev[N], start[N];
     static uint8_t ups[N], downs[N];
     sleep(10);
-    memcpy(prev, (const void *)(uintptr_t)MD_LO, sizeof prev);
+    memcpy(prev, (const void *)GPTR(MD_LO), sizeof prev);
     memcpy(start, prev, sizeof start);
     for (int round = 0;; round++) {
         for (int k = 0; k < 8; k++) {
             usleep(250000);
-            const uint16_t *cur = (const uint16_t *)(uintptr_t)MD_LO;
+            const uint16_t *cur = (const uint16_t *)GPTR(MD_LO);
             for (uint32_t i = 0; i < N; i++) {
                 uint16_t a = prev[i], b = cur[i];
                 if (b > a) ups[i]++; else if (b < a) downs[i]++;
@@ -225,11 +228,11 @@ static void *watch_words(void *arg) {
         for (int i = 0; i < n; i++) {
             uint32_t a = addr[i];
             if (deref[i]) {
-                a = *(volatile uint32_t *)(uintptr_t)a;
+                a = *(volatile uint32_t *)GPTR(a);
                 if (a < 0x400000u) { v[i] = 0; continue; }
                 a += off[i];
             }
-            v[i] = *(volatile uint16_t *)(uintptr_t)a;
+            v[i] = *(volatile uint16_t *)GPTR(a);
             changed |= v[i] != last[i];
             last[i] = v[i];
         }

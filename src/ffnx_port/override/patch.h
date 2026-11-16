@@ -103,12 +103,12 @@ void step_code();             // once per game frame (ff7_limit_fps)
 template <typename T>
 void patch_multiply_code(uint32_t offset, int multiplier) {
     ffnx_recomp::note_code_write(offset, sizeof(T), "patch_multiply_code");
-    *(T *)(uintptr_t)offset = (*(T *)(uintptr_t)offset) * (T)multiplier;
+    *(T *)GPTR(offset) = (*(T *)GPTR(offset)) * (T)multiplier;
 }
 
 template <typename T>
 void patch_divide_code(uint32_t offset, int multiplier) {
-    const T before = *(T *)(uintptr_t)offset;
+    const T before = *(T *)GPTR(offset);
     if constexpr (std::is_integral_v<T>) {
         // FF7Recomp: an inexact quotient is stepped (floor / floor+1 per frame) in the
         // 120 FPS mode instead of truncated.
@@ -126,7 +126,7 @@ void patch_divide_code(uint32_t offset, int multiplier) {
         after = before > 0 ? (T)1 : (T)-1;
         ffnx_recomp::note_divide_floor(offset, (int)before, multiplier, (int)after);
     }
-    *(T *)(uintptr_t)offset = after;
+    *(T *)GPTR(offset) = after;
 }
 
 void *member_func_to_ptr(char i, ...);

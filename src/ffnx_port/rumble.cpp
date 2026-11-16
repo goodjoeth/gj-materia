@@ -118,7 +118,7 @@ void battle_frame(clk::time_point now, bool settling) {
     battle_ai_context *bc = ff7_externals.battle_context;
     int shown[10], cur[10], max[10];
     for (int i = 0; i < 10; i++) {
-        shown[i] = *(const uint16_t *)(uintptr_t)(k_shown_hp + k_shown_stride * i);
+        shown[i] = *(const uint16_t *)GPTR(k_shown_hp + k_shown_stride * i);
         cur[i] = bc->actor_vars[i].currentHP;
         max[i] = i == 3 ? 0 : bc->actor_vars[i].maxHP;   // 0: no actor
     }

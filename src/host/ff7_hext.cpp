@@ -8,6 +8,7 @@
 // code write is checked against the lift's variant table (recomp_variants.c, emitted by
 // run_lift.py), and the function holding a write with no lifted counterpart is switched to
 // the x86 interpreter (src/interp), which runs the bytes in memory -- the patch included.
+#include "ff7_guest_space.h"   // FF7_HOST: guest address -> host pointer
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -84,19 +85,19 @@ bool readable(uint32_t va, uint32_t n) {
 uint32_t read32(uint32_t va) {
     if (!readable(va, 4)) throw std::runtime_error("pointer read outside game memory");
     uint32_t v;
-    std::memcpy(&v, (const void *)(uintptr_t)va, 4);
+    std::memcpy(&v, (const void *)FF7_HOST(va), 4);
     return v;
 }
 
 // Is the patched code at [va, va+n) (now in memory) something the lift can run?
 const char *code_status(uint32_t va, const std::vector<uint8_t> &before, uint32_t n) {
-    if (std::memcmp(before.data(), (const void *)(uintptr_t)va, n) == 0) return nullptr;   // unchanged
+    if (std::memcmp(before.data(), (const void *)FF7_HOST(va), n) == 0) return nullptr;   // unchanged
     bool covered = false;
     for (uint32_t i = 0; i < ff7_code_variant_count; i++) {
         const ff7_code_variant_t &v = ff7_code_variants[i];
         if (v.end <= va || v.start >= va + n) continue;
         covered = true;
-        const uint8_t *m = (const uint8_t *)(uintptr_t)v.start;
+        const uint8_t *m = (const uint8_t *)FF7_HOST(v.start);
         bool match = true;
         for (uint32_t k = 0; k < v.end - v.start && match; k++)
             match = !(uint8_t)v.mask[k] || m[k] == (uint8_t)v.bytes[k];
@@ -176,8 +177,8 @@ void apply_one(const std::string &mod, const std::string &file, const std::strin
         [&](uint32_t va, const uint8_t *b, uint32_t n) {
             if (!readable(va, n)) throw std::runtime_error("write outside game memory");
             bool code = va < TEXT_HI && va + n > TEXT_LO;
-            std::vector<uint8_t> before((const uint8_t *)(uintptr_t)va, (const uint8_t *)(uintptr_t)va + n);
-            std::memcpy((void *)(uintptr_t)va, b, n);
+            std::vector<uint8_t> before((const uint8_t *)FF7_HOST(va), (const uint8_t *)FF7_HOST(va) + n);
+            std::memcpy((void *)FF7_HOST(va), b, n);
             c.writes++;
             // FF7_HEXT_WATCH=<hex address>: which hext file writes it, and what (finding a mod's value)
             static const uint32_t watch = getenv("FF7_HEXT_WATCH") ? (uint32_t)std::strtoul(getenv("FF7_HEXT_WATCH"), nullptr, 16) : 0;

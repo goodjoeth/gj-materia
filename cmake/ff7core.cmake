@@ -26,7 +26,14 @@ if(NOT FF7_NO_GUEST)
   endif()
 endif()
 
-set(FF7_GUEST_DEFS RECOMP_FLAT_MEMORY RECOMP_STRICT_ICALL)
+# Guest memory: flat (guest address == host address) everywhere the low 4 GB can be mapped;
+# offset (a 4 GB range anywhere, g_mem_base) on Apple arm64, which can't (src/host/ff7_guest_space.h).
+option(FF7_OFFSET_MEMORY "Guest memory at an offset (Apple arm64: macOS and iOS)" OFF)
+if(FF7_OFFSET_MEMORY)
+  set(FF7_GUEST_DEFS RECOMP_STRICT_ICALL)
+else()
+  set(FF7_GUEST_DEFS RECOMP_FLAT_MEMORY RECOMP_STRICT_ICALL)
+endif()
 set(FF7_GUEST_OPT "-O1" CACHE STRING "Optimisation of the lifted code (-O1 keeps compile time sane)")
 option(FF7_TRACE "Lifted-function entry ring (src/host/ff7_trace.c)" OFF)
 if(FF7_TRACE)
@@ -58,6 +65,7 @@ add_library(ff7_core STATIC
   "${RT}/win32hle/gdi32.c"
   "${RT}/win32hle/user32.c"
   "${HOST}/ff7_boot.c"
+  "${HOST}/ff7_guest_space.c"
   "${HOST}/ff7_runtime_hooks.c"
   "${HOST}/ff7_crash.c"
   "${HOST}/ff7_trace.c"

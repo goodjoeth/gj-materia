@@ -151,7 +151,7 @@ void ff7_run_callsite(void) {
  * FFNx's code patches are lifted as alternatives of the original instructions; the lift
  * picks one by comparing the bytes in memory now (mask 0x00 = an operand read live). */
 int ff7_code_match(uint32_t va, const char *bytes, const char *mask, uint32_t n) {
-    const uint8_t *m = (const uint8_t *)(uintptr_t)va;
+    const uint8_t *m = (const uint8_t *)GPTR(va);
     for (uint32_t i = 0; i < n; i++)
         if ((uint8_t)mask[i] && m[i] != (uint8_t)bytes[i]) return 0;
     return 1;

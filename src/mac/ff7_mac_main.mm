@@ -259,12 +259,23 @@ static void *hitch_thread(void *) {
             continue;
         }
         if (thread_suspend(g_game_mach) != KERN_SUCCESS) continue;
+#if defined(__arm64__)
+        arm_thread_state64_t st; mach_msg_type_number_t cnt = ARM_THREAD_STATE64_COUNT;
+        const thread_state_flavor_t flavor = ARM_THREAD_STATE64;
+#else
         x86_thread_state64_t st; mach_msg_type_number_t cnt = x86_THREAD_STATE64_COUNT;
+        const thread_state_flavor_t flavor = x86_THREAD_STATE64;
+#endif
         hitch_sample &h = g_hs[g_hs_n.load() % 4096];
         h.n = 0; h.t = now_ticks();
-        if (thread_get_state(g_game_mach, x86_THREAD_STATE64, (thread_state_t)&st, &cnt) == KERN_SUCCESS) {
+        if (thread_get_state(g_game_mach, flavor, (thread_state_t)&st, &cnt) == KERN_SUCCESS) {
+#if defined(__arm64__)
+            h.pc[h.n++] = (uintptr_t)arm_thread_state64_get_pc(st);
+            uintptr_t fp = (uintptr_t)arm_thread_state64_get_fp(st);
+#else
             h.pc[h.n++] = st.__rip;
             uintptr_t fp = st.__rbp;
+#endif
             while (h.n < 16 && fp && (fp & 7) == 0) {
                 uintptr_t pair[2]; vm_size_t got = 0;   // read safely: a frame may not be one
                 if (vm_read_overwrite(mach_task_self(), fp, sizeof pair, (vm_address_t)pair, &got) != KERN_SUCCESS || got != sizeof pair) break;

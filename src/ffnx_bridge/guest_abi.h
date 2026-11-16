@@ -42,11 +42,15 @@ namespace guest {
 // ---- addresses ---------------------------------------------------------------------
 
 inline uint32_t va_of(const void *p) {
-    uintptr_t a = reinterpret_cast<uintptr_t>(p);
-    if (a > 0xFFFFFFFFu) fatal("host pointer given to the guest (not guest memory)", a);
-    return static_cast<uint32_t>(a);
+    // a pointer into guest memory: its guest address (flat: the same number; offset build:
+    // the distance from g_mem_base, recomp_types.h)
+    if (p && !IS_GUEST(p)) fatal("host pointer given to the guest (not guest memory)", reinterpret_cast<uintptr_t>(p));
+    return GVA(p);
 }
-template <typename T> inline T *ptr_of_raw(uint32_t va) { return reinterpret_cast<T *>(static_cast<uintptr_t>(va)); }
+template <typename T> inline T *ptr_of_raw(uint32_t va) {
+    if constexpr (std::is_function_v<T>) return reinterpret_cast<T *>(static_cast<uintptr_t>(va));   // code: an address, not memory
+    else return static_cast<T *>(GPTR(va));
+}
 
 // ---- host handles: opaque host objects the game only stores and hands back ----------
 // FFNx's open_lgp_file returns a FILE* that the game keeps in its LGP tables and FFNx's
@@ -242,8 +246,7 @@ template <typename A> inline void put_arg(uint32_t *&w, A a) {
     else if constexpr (std::is_same_v<A, const char *>) {
         // Read-only strings may be host literals (FFNx passes __FILE__ to the game's debug
         // allocator): a host one goes over as a guest copy, made once per distinct text.
-        uintptr_t p = reinterpret_cast<uintptr_t>(a);
-        *w++ = !a ? 0 : p <= 0xFFFFFFFFu ? static_cast<uint32_t>(p) : guest_string(a);
+        *w++ = !a ? 0 : IS_GUEST(a) ? GVA(a) : guest_string(a);
     }
     else if constexpr (std::is_pointer_v<A>) {
         using T = std::remove_pointer_t<A>;
@@ -253,10 +256,10 @@ template <typename A> inline void put_arg(uint32_t *&w, A a) {
         constexpr bool scalar_out = std::is_arithmetic_v<TU> && !std::is_same_v<TU, char> &&
                                     !std::is_same_v<TU, unsigned char> && !std::is_same_v<TU, signed char>;
         if constexpr ((std::is_class_v<T> && is_complete<T>::value && !is_host_handle<TU>::value) || scalar_out) {
-            if (reinterpret_cast<uintptr_t>(a) > 0xFFFFFFFFu) { *w++ = bounce_in(a); return; }
+            if (a && !IS_GUEST(a)) { *w++ = bounce_in(a); return; }
         }
         if constexpr (std::is_same_v<A, char *>) {
-            if (reinterpret_cast<uintptr_t>(a) > 0xFFFFFFFFu) { *w++ = bounce_str(a); return; }
+            if (a && !IS_GUEST(a)) { *w++ = bounce_str(a); return; }
         }
         *w++ = to_va(a);
     }

@@ -106,7 +106,7 @@ static int rec(buf_t *b, uint32_t id, const void *d, uint32_t n) {
 static int rec_mem(buf_t *b, uint32_t lo, uint32_t hi) {
     if (hi <= lo) return 0;
     uint32_t h[3] = { R_MEM, (hi - lo) + 4, lo };
-    return buf_put(b, h, sizeof h) || buf_put(b, (const void *)(uintptr_t)lo, hi - lo);
+    return buf_put(b, h, sizeof h) || buf_put(b, (const void *)GPTR(lo), hi - lo);
 }
 
 /* ---- hooks (the FFNx port's state) ------------------------------------------------------- */
@@ -330,7 +330,7 @@ static void apply(const uint8_t *p, size_t n) {
         case R_MEM: {
             uint32_t va;
             memcpy(&va, d, 4);
-            memcpy((void *)(uintptr_t)va, d + 4, len - 4);
+            memcpy((void *)GPTR(va), d + 4, len - 4);
             break;
         }
         case R_FREE: {

@@ -5,7 +5,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/external/deps/ffmpeg"
-OUT="$ROOT/build/ffmpeg-mac"
+ARCH="${FF7_ARCH:-x86_64}"                     # FF7_ARCH=arm64: the native Apple silicon build
+OUT="$ROOT/build/ffmpeg-mac$([ "$ARCH" = arm64 ] && echo -arm64)"
 [ -d "$SRC" ] || git -c advice.detachedHead=false clone -q --depth 1 -b n9.0.2 https://github.com/FFmpeg/FFmpeg.git "$SRC"
 mkdir -p "$OUT/build"
 # FFmpeg's configure can't build from a path with spaces ("Out of tree builds are impossible with
@@ -18,8 +19,8 @@ esac
 cd "$OUT/build"
 "$SRC/configure" \
   --prefix="$OUT" \
-  --arch=x86_64 --enable-cross-compile --target-os=darwin \
-  --cc="clang -arch x86_64 -mmacosx-version-min=12.0" --cxx="clang++ -arch x86_64 -mmacosx-version-min=12.0" \
+  --arch=$ARCH --enable-cross-compile --target-os=darwin \
+  --cc="clang -arch $ARCH -mmacosx-version-min=12.0" --cxx="clang++ -arch $ARCH -mmacosx-version-min=12.0" \
   --pkg-config=false \
   --enable-static --disable-shared --enable-pic \
   --disable-programs --disable-doc --disable-debug --disable-avdevice --disable-avfilter \

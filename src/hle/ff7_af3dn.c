@@ -18,8 +18,8 @@
 #include "ff7_hle.h"
 
 #define ERROR_SUCCESS 0u
-#define W8(p)  (*(uint8_t *)(uintptr_t)(p))
-#define W32(p) (*(uint32_t *)(uintptr_t)(p))
+#define W8(p)  (*(uint8_t *)ADDR(p))
+#define W32(p) (*(uint32_t *)ADDR(p))
 
 static long g_sfx_volume = -1, g_music_volume = -1;   /* FFNx cfg defaults (unset) */
 
@@ -49,7 +49,7 @@ static void d_RegQueryValueExA(void) {
     const char *name = ASTR(1);
     uint32_t data = A32(4), pcb = A32(5);
     uint32_t cb = pcb ? W32(pcb) : 0;
-    char *out = (char *)(uintptr_t)data;
+    char *out = (char *)GPTR(data);
     uint32_t ret = ERROR_SUCCESS;
     if (getenv("FF7_TRACE_REG")) fprintf(stderr, "[reg] query %s (cb=%u)\n", name ? name : "(null)", cb);
     if (!name || !data) RET(ERROR_SUCCESS, 6);

@@ -21,19 +21,19 @@ uint32_t ff7_com_vtable(const ff7_com_method *methods, int count) {
         }
         vt[i] = va;
     }
-    return (uint32_t)(uintptr_t)vt;
+    return GVA(vt);
 }
 
 uint32_t ff7_com_new(uint32_t vtable, uint32_t state_size) {
     uint32_t *obj = (uint32_t *)guest_calloc(1, 8u + state_size);
     obj[0] = vtable;
     obj[1] = 1;                                         /* reference count */
-    return (uint32_t)(uintptr_t)obj;
+    return GVA(obj);
 }
 
 uint32_t ff7_guest_strdup(const char *s) {
     size_t n = strlen(s) + 1;
     char *p = (char *)guest_malloc(n);
     memcpy(p, s, n);
-    return (uint32_t)(uintptr_t)p;
+    return GVA(p);
 }

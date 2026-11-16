@@ -22,7 +22,7 @@
 #define DI_NOEFFECT      1u
 #define DIERR_INVALIDPARAM 0x80070057u
 #define E_NOINTERFACE    0x80004002u
-#define W32(p) (*(uint32_t *)(uintptr_t)(p))
+#define W32(p) (*(uint32_t *)ADDR(p))
 
 /* ---- IDirectInputDeviceA / IDirectInputDevice2A (same object) */
 static void dev_QueryInterface(void) {   /* (this, riid, ppv) */
@@ -38,7 +38,7 @@ static void dev_AddRef(void)  { uint32_t s = A32(0); RET(++FF7_COM_REFS(s), 1); 
 static void dev_Release(void) { uint32_t s = A32(0); uint32_t r = FF7_COM_REFS(s) ? --FF7_COM_REFS(s) : 0; RET(r, 1); }
 static void dev_GetCapabilities(void) {  /* (this, DIDEVCAPS*) */
     uint32_t c = A32(1);
-    if (c) { uint32_t n = W32(c); memset((void *)(uintptr_t)(c + 4), 0, n > 4 ? n - 4 : 0); W32(c + 4) = 1; /* DIDC_ATTACHED */ W32(c + 8) = 0x13; /* keyboard */ W32(c + 16) = 128; }
+    if (c) { uint32_t n = W32(c); memset((void *)GPTR(c + 4), 0, n > 4 ? n - 4 : 0); W32(c + 4) = 1; /* DIDC_ATTACHED */ W32(c + 8) = 0x13; /* keyboard */ W32(c + 16) = 128; }
     RET(DI_OK, 2);
 }
 static void dev_ok2(void) { RET(DI_OK, 2); }
@@ -51,8 +51,8 @@ static void dev_GetDeviceState(void) {   /* (this, cb, data) */
     if (!data) RET(DIERR_INVALIDPARAM, 3);
     unsigned char keys[256];
     ff7_platform_keyboard_state(keys);
-    memcpy((void *)(uintptr_t)data, keys, cb < 256 ? cb : 256);
-    if (cb > 256) memset((void *)(uintptr_t)(data + 256), 0, cb - 256);
+    memcpy((void *)GPTR(data), keys, cb < 256 ? cb : 256);
+    if (cb > 256) memset((void *)GPTR(data + 256), 0, cb - 256);
     RET(DI_OK, 3);
 }
 static void dev_GetDeviceData(void) {    /* (this, cbObjectData, rgdod, pdwInOut, flags): no buffered events */

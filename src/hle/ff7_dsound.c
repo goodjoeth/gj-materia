@@ -37,8 +37,8 @@
 #define DSBSTATUS_LOOPING  0x4u
 #define DSBLOCK_FROMWRITECURSOR 0x1u
 #define DSBLOCK_ENTIREBUFFER    0x2u
-#define W32(p) (*(uint32_t *)(uintptr_t)(p))
-#define W16(p) (*(uint16_t *)(uintptr_t)(p))
+#define W32(p) (*(uint32_t *)ADDR(p))
+#define W16(p) (*(uint16_t *)ADDR(p))
 
 #define MIX_RATE 48000
 #define MAX_VOICES 256
@@ -107,7 +107,7 @@ static void voice_gains(voice *v) {
 }
 
 static inline float sample_at(const voice *v, uint32_t frame, int ch) {
-    const uint8_t *p = (const uint8_t *)(uintptr_t)v->data + (size_t)frame * v->block;
+    const uint8_t *p = (const uint8_t *)ADDR(v->data) + (size_t)frame * v->block;   /* the mixer: no NULL test per sample */
     if (v->bits == 16) return (float)((const int16_t *)p)[ch < v->channels ? ch : 0] * (1.0f / 32768.0f);
     return ((float)p[ch < v->channels ? ch : 0] - 128.0f) * (1.0f / 128.0f);
 }
@@ -248,7 +248,7 @@ static void b_Release(void) {
         /* PCM is freed with the last buffer that shares it. */
         int shared = 0;
         for (int i = 1; i < MAX_VOICES; i++) if (&g_voices[i] != v && g_voices[i].obj && g_voices[i].data == v->data) shared = 1;
-        if (!shared && v->data) guest_free((void *)(uintptr_t)v->data);
+        if (!shared && v->data) guest_free((void *)GPTR(v->data));
         memset(v, 0, sizeof *v);
         pthread_mutex_unlock(&g_lock);
     }
@@ -407,7 +407,7 @@ static void s_CreateSoundBuffer(void) {   /* (this, DSBUFFERDESC*, ppBuf, outer)
         t.bytes = bytes;
         void *pcm = guest_calloc(1, bytes ? bytes : 1);
         if (!pcm) RET(DSERR_INVALIDPARAM, 4);
-        t.data = (uint32_t)(uintptr_t)pcm;
+        t.data = GVA(pcm);
     }
     uint32_t obj = buffer_new(&t);
     if (!obj) RET(DSERR_INVALIDPARAM, 4);
@@ -420,7 +420,7 @@ static void s_GetCaps(void) {             /* (this, DSCAPS*) */
     uint32_t c = A32(1);
     if (!c) RET(DSERR_INVALIDPARAM, 2);
     uint32_t size = W32(c);
-    memset((void *)(uintptr_t)(c + 4), 0, size > 4 ? size - 4 : 0);
+    memset((void *)GPTR(c + 4), 0, size > 4 ? size - 4 : 0);
     /* PRIMARYMONO|STEREO|8BIT|16BIT, CONTINUOUSRATE, SECONDARYMONO|STEREO|8BIT|16BIT */
     W32(c + 4) = 0x1u | 0x2u | 0x4u | 0x8u | 0x10u | 0x100u | 0x200u | 0x400u | 0x800u;
     W32(c + 8) = 100; W32(c + 12) = 200000;

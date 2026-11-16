@@ -18,7 +18,7 @@
 #define DD_OK                0u
 #define E_NOINTERFACE        0x80004002u
 #define DDERR_INVALIDPARAMS  0x80070057u
-#define W32(p) (*(uint32_t *)(uintptr_t)(p))
+#define W32(p) (*(uint32_t *)ADDR(p))
 
 /* The mode FF7 runs in; FFNx renders at the device resolution regardless. */
 #define FF7_MODE_W 640
@@ -40,7 +40,7 @@ static void dd_QueryInterface(void) {               /* (this, riid, ppv) */
         RET(DD_OK, 3);
     }
     fprintf(stderr, "[ddraw] IDirectDraw::QueryInterface(%08X-%04X-%04X) -> E_NOINTERFACE\n",
-            d1, *(uint16_t *)(uintptr_t)(riid + 4), *(uint16_t *)(uintptr_t)(riid + 6));
+            d1, *(uint16_t *)GPTR(riid + 4), *(uint16_t *)GPTR(riid + 6));
     W32(ppv) = 0;
     RET(E_NOINTERFACE, 3);
 }
@@ -60,7 +60,7 @@ static void dd_RestoreDisplayMode(void) { RET(DD_OK, 1); }
  * ddpfPixelFormat +0x48 (dwSize, dwFlags, FourCC, RGBBitCount, R, G, B, A masks). */
 static void fill_mode(uint32_t d, uint32_t w, uint32_t h, uint32_t bpp) {
     uint32_t size = W32(d) ? W32(d) : 108;
-    memset((void *)(uintptr_t)d, 0, size);
+    memset((void *)GPTR(d), 0, size);
     W32(d) = size;
     W32(d + 0x04) = 0x1u | 0x2u | 0x4u | 0x8u | 0x1000u;   /* CAPS|HEIGHT|WIDTH|PITCH|PIXELFORMAT */
     W32(d + 0x08) = h;
@@ -82,21 +82,21 @@ static void dd_GetDisplayMode(void) {               /* (this, desc) */
 static void dd_EnumDisplayModes(void) {
     uint32_t ctx = A32(3), cb = A32(4);
     static const uint32_t modes[][3] = { { 640, 480, 16 }, { 640, 480, 32 } };
-    uint32_t d = (uint32_t)(uintptr_t)guest_calloc(1, 108);
+    uint32_t d = GVA(guest_calloc(1, 108));
     for (unsigned i = 0; i < sizeof modes / sizeof modes[0]; i++) {
         W32(d) = 108;
         fill_mode(d, modes[i][0], modes[i][1], modes[i][2]);
         uint32_t args[2] = { d, ctx };
         if (!hle_call_guest(cb, 2, args)) break;     /* DDENUMRET_CANCEL */
     }
-    guest_free((void *)(uintptr_t)d);
+    guest_free((void *)GPTR(d));
     RET(DD_OK, 5);
 }
 /* GetCaps(this, drv, hel): sizes kept, everything else zero (no hardware blitter). */
 static void dd_GetCaps(void) {
     for (int i = 1; i <= 2; i++) {
         uint32_t c = A32(i);
-        if (c) { uint32_t n = W32(c); memset((void *)(uintptr_t)c, 0, n); W32(c) = n; }
+        if (c) { uint32_t n = W32(c); memset((void *)GPTR(c), 0, n); W32(c) = n; }
     }
     RET(DD_OK, 3);
 }
@@ -179,11 +179,11 @@ static void sf_GetCaps(void) { uint32_t c = A32(1); if (c) W32(c) = SURF(A32(0))
 static void sf_GetPixelFormat(void) {               /* (this, DDPIXELFORMAT*) */
     uint32_t pf = A32(1);
     if (!pf) RET(DDERR_INVALIDPARAMS, 2);
-    uint32_t tmp = (uint32_t)(uintptr_t)guest_calloc(1, 108);
+    uint32_t tmp = GVA(guest_calloc(1, 108));
     W32(tmp) = 108;
     fill_mode(tmp, 1, 1, SURF(A32(0))->bpp);
-    memcpy((void *)(uintptr_t)pf, (void *)(uintptr_t)(tmp + 0x48), 32);
-    guest_free((void *)(uintptr_t)tmp);
+    memcpy((void *)GPTR(pf), (void *)GPTR(tmp + 0x48), 32);
+    guest_free((void *)GPTR(tmp));
     RET(DD_OK, 2);
 }
 static void sf_GetAttachedSurface(void) {           /* (this, caps*, surf**) */
@@ -227,8 +227,8 @@ static void blit(uint32_t dst, uint32_t dx, uint32_t dy, uint32_t src, uint32_t 
     if (h > d->h - dy) h = d->h - dy;
     if (h > s->h - sy) h = s->h - sy;
     for (uint32_t y = 0; y < h; y++)
-        memmove((uint8_t *)(uintptr_t)(d->pixels + (dy + y) * d->pitch + dx * bpp),
-                (uint8_t *)(uintptr_t)(s->pixels + (sy + y) * s->pitch + sx * bpp), (size_t)w * bpp);
+        memmove((uint8_t *)GPTR(d->pixels + (dy + y) * d->pitch + dx * bpp),
+                (uint8_t *)GPTR(s->pixels + (sy + y) * s->pitch + sx * bpp), (size_t)w * bpp);
 }
 static void rect_or_full(uint32_t r, uint32_t s, uint32_t *x, uint32_t *y, uint32_t *w, uint32_t *h) {
     if (r) { *x = W32(r); *y = W32(r + 4); *w = W32(r + 8) - *x; *h = W32(r + 12) - *y; }
@@ -245,7 +245,7 @@ static void sf_Blt(void) {
         for (uint32_t y = dy; y < dy + dh && y < d->h; y++)
             for (uint32_t x = dx; x < dx + dw && x < d->w; x++) {
                 uint32_t a = d->pixels + y * d->pitch + x * (d->bpp / 8);
-                if (d->bpp == 16) *(uint16_t *)(uintptr_t)a = (uint16_t)color;
+                if (d->bpp == 16) *(uint16_t *)GPTR(a) = (uint16_t)color;
                 else W32(a) = color;
             }
         RET(DD_OK, 6);
@@ -312,7 +312,7 @@ static uint32_t surf_new(uint32_t w, uint32_t h, uint32_t bpp, uint32_t caps) {
     surf_t *st = SURF(s);
     st->w = w; st->h = h; st->bpp = bpp; st->caps = caps;
     st->pitch = (w * (bpp / 8) + 3u) & ~3u;
-    st->pixels = (uint32_t)(uintptr_t)guest_calloc(1, (size_t)st->pitch * h);
+    st->pixels = GVA(guest_calloc(1, (size_t)st->pitch * h));
     return s;
 }
 

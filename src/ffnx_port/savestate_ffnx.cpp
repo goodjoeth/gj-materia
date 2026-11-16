@@ -60,7 +60,7 @@ int ss_save(void *, ff7_ss_writer put, void *buf) {
 void ss_before_load(void *) {
     std::set<uint32_t> gone;
     for (uint32_t a : g_sets) {
-        struct ff7_texture_set *ts = (struct ff7_texture_set *)(uintptr_t)a;
+        struct ff7_texture_set *ts = (struct ff7_texture_set *)GPTR(a);
         struct gl_texture_set *gl = ts->ogl.gl_set;
         uint32_t *handles = ts->texturehandle;
         if (!gl || !handles) continue;
@@ -87,7 +87,7 @@ void ss_restore(void *, const void *data, size_t n) {
 void ss_after_load(void *) {
     int sets = 0, uploads = 0;
     for (uint32_t a : g_restored) {
-        struct ff7_texture_set *ts = (struct ff7_texture_set *)(uintptr_t)a;
+        struct ff7_texture_set *ts = (struct ff7_texture_set *)GPTR(a);
         struct gl_texture_set *gl = ts->ogl.gl_set;
         g_sets.insert(a);
         if (!gl) continue;
