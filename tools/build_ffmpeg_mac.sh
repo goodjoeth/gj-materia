@@ -8,6 +8,13 @@ SRC="$ROOT/external/deps/ffmpeg"
 OUT="$ROOT/build/ffmpeg-mac"
 [ -d "$SRC" ] || git -c advice.detachedHead=false clone -q --depth 1 -b n9.0.2 https://github.com/FFmpeg/FFmpeg.git "$SRC"
 mkdir -p "$OUT/build"
+# FFmpeg's configure can't build from a path with spaces ("Out of tree builds are impossible with
+# whitespace in source path"): work through links without them
+case "$ROOT" in *" "*)
+  LINKS="$(mktemp -d /tmp/gjm-ffmpeg.XXXXXX)"
+  ln -s "$SRC" "$LINKS/src"; ln -s "$OUT" "$LINKS/out"
+  SRC="$LINKS/src"; OUT="$LINKS/out" ;;
+esac
 cd "$OUT/build"
 "$SRC/configure" \
   --prefix="$OUT" \

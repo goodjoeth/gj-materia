@@ -61,7 +61,7 @@ final class Installer: ObservableObject {
     var venv: URL { tools.appendingPathComponent("venv") }
 
     init() {
-        workDir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("GJ Materia")
+        workDir = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("GJMateria")
         gameDir = Self.findGame()
     }
 
@@ -296,6 +296,19 @@ final class Installer: ObservableObject {
             set(4, .running, L("อัปเดต", "Updating"))
             if run(git, ["-C", workDir.path, "pull", "--ff-only", "-q"]) != 0 { say("(could not update; building what is there)") }
         } else {
+            // exFAT / FAT drives (most external drives as sold) keep "._" files beside everything and have
+            // no Unix permissions or links: git and the build trip on them
+            var probe = workDir
+            while !fm.fileExists(atPath: probe.path) { probe.deleteLastPathComponent() }
+            var st = statfs()
+            if statfs(probe.path, &st) == 0 {
+                let type = withUnsafeBytes(of: &st.f_fstypename) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+                if ["exfat", "msdos", "ntfs"].contains(type) {
+                    set(4, .failed)
+                    throw Failed(message: L("ไดรฟ์นี้เป็นแบบ \(type) ซึ่ง build ไม่ได้ เลือกไดรฟ์ในเครื่อง หรือไดรฟ์ที่ฟอร์แมตเป็น APFS / Mac OS Extended",
+                                            "This drive is \(type), which the build can't use: choose the Mac's own drive, or a drive formatted APFS or Mac OS Extended"))
+                }
+            }
             let free = freeGB(workDir)
             if free < Self.needGB {
                 set(4, .failed)
@@ -492,7 +505,7 @@ struct InstallerView: View {
         p.message = L("เลือกที่เก็บซอร์สและไฟล์ build (ต้องการพื้นที่ ~15 GB และเก็บไว้ใช้ตอนทำให้ม็อดเร็วขึ้น)",
                       "Where to keep the source and build files (~15 GB; kept for “Make mods faster”)")
         guard p.runModal() == .OK, let u = p.url else { return }
-        inst.workDir = u.lastPathComponent == "GJ Materia" ? u : u.appendingPathComponent("GJ Materia")
+        inst.workDir = u.lastPathComponent == "GJMateria" ? u : u.appendingPathComponent("GJMateria")
     }
 
     func saveLog() {
