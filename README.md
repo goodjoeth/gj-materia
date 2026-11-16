@@ -202,15 +202,34 @@ Done: everything listed under "What you get". Planned next, roughly in order:
 
 Help and bug reports are welcome: the launcher's "Report a problem..." makes a .zip to attach.
 
-## Credits
+## Thanks and credits
+
+**A word from Good JOE.** I had given up on playing a modded FINAL FANTASY VII on my Mac: Wine and
+CrossOver stuttered, froze and broke with every update. Then I found
+[**FF7Recomp** by bhuiyah](https://github.com/bhuiyah/ff7-recomp-android), a static recompilation
+of the PC game for Android. It showed me the game could run natively, without emulating Windows,
+and that is what made me see a way to bring it to the Mac. GJ Materia is built on that work. Thank
+you, bhuiyah.
+
+None of this would exist without the people who have kept FF7 on PC alive for years:
+
+* **[FF7Recomp](https://github.com/bhuiyah/ff7-recomp-android)** by bhuiyah: the recompiled game,
+  its runtime and the Android port this Mac version grew from.
+* **[FFNx](https://github.com/julianxhokaxhiu/FFNx)** by Julian Xhokaxhiu and its contributors: the
+  renderer and the heart of modern FF7 on PC (widescreen, 60 FPS, mod textures, music, achievements).
+* **[7th Heaven](https://github.com/tsunamods-codes/7th-Heaven)** by the Tsunamods team: the mod
+  manager whose catalogs, mod format, options and code patches the launcher follows.
+* **[pcrecomp](https://github.com/sp00nznet/pcrecomp)** by sp00nznet: the static recompiler.
+* **The Qhimm and Tsunamods communities and every mod author**, among them Bonez (Finishing
+  Touch), Chrysalis (Enhanced Stock UI), Ninostyle, Satsuki Yatoshi (SYW), KWRRK (IFRIT), the Cosmos
+  team and the rest of the catalog's authors. Please support them.
+* **The libraries**: bgfx (Branimir Karadžić), FFmpeg, SDL, rcheevos, capstone and the others in
+  `tools/fetch_deps*.sh`.
+* **Square Enix**, for FINAL FANTASY VII. Buy the game on Steam.
 
 GJ Materia was put together by Good JOE, with an AI coding agent (Claude, in Claude Code) writing
-the code under his direction, as the Android version was.
-
-FF7Recomp and its Android port; [FFNx](https://github.com/julianxhokaxhiu/FFNx);
-[pcrecomp](https://github.com/sp00nznet/pcrecomp); 7th Heaven and the Qhimm / Tsunamods
-catalogs; bgfx, FFmpeg, SDL, rcheevos and the other libraries in `tools/fetch_deps*.sh`; and every
-mod author. Please support them. Licensed under the GNU GPL v3 (see LICENSE), as FF7Recomp and FFNx.
+the code under his direction, as FF7Recomp's Android version was. Licensed under the GNU GPL v3
+(see LICENSE), as FF7Recomp and FFNx.
 
 ---
 
@@ -259,6 +278,18 @@ GJ Materia แปลงครั้งเดียวล่วงหน้าบ
 - **installer ที่ลงชื่อกับ Apple** (ไม่ต้องคลิกขวา → Open ครั้งแรก)
 - **รันบน Apple silicon โดยตรง และ iPad**: ต้องเปลี่ยนวิธีจัดหน่วยความจำของโค้ดที่แปลงมา งานใหญ่ที่สุด
 - **RetroAchievements ออนไลน์** เมื่อ RetroAchievements อนุมัติ
+
+### ขอบคุณและเครดิต
+**จาก Good JOE:** ผมเคยหมดหวังกับการเล่น FINAL FANTASY VII แบบลงม็อดบน Mac ไปแล้ว เพราะ Wine และ CrossOver ทั้งกระตุก ทั้งค้าง และพังทุกครั้งที่อัปเดต จนได้เจอ [**FF7Recomp** ของ bhuiyah](https://github.com/bhuiyah/ff7-recomp-android) ที่แปลงเกมเวอร์ชัน PC ให้รันบน Android ได้โดยตรง มันทำให้ผมเห็นว่าเกมนี้รันแบบ native ได้โดยไม่ต้องจำลอง Windows และเป็นแรงบันดาลใจที่ทำให้ผมมองเห็นโอกาสที่จะทำให้เล่นบน Mac ได้ GJ Materia สร้างต่อจากงานนั้น ขอบคุณ bhuiyah มากครับ
+
+และขอบคุณทุกคนที่ทำให้ FF7 บน PC ยังมีชีวิตมาจนทุกวันนี้:
+- **FF7Recomp** (bhuiyah): เกมที่แปลงโค้ดแล้ว ตัว runtime และเวอร์ชัน Android ที่เป็นต้นทางของเวอร์ชัน Mac
+- **FFNx** (Julian Xhokaxhiu และทีม): ตัว render และหัวใจของ FF7 บน PC ยุคใหม่ (จอกว้าง 60 FPS texture ม็อด เพลง achievement)
+- **7th Heaven** (ทีม Tsunamods): ตัวจัดการม็อดที่ launcher ของเราใช้ catalog รูปแบบม็อด ตัวเลือก และ code patch ตามแบบ
+- **pcrecomp** (sp00nznet): ตัวแปลงโค้ดเกม (static recompiler)
+- **ชุมชน Qhimm, Tsunamods และผู้สร้างม็อดทุกคน** เช่น Bonez (Finishing Touch), Chrysalis (Enhanced Stock UI), Ninostyle, Satsuki Yatoshi (SYW), KWRRK (IFRIT), ทีม Cosmos และทุกคนใน catalog ฝากสนับสนุนพวกเขาด้วย
+- **ไลบรารี**: bgfx, FFmpeg, SDL, rcheevos, capstone และอื่นๆ
+- **Square Enix** ผู้สร้าง FINAL FANTASY VII ซื้อเกมบน Steam เพื่อสนับสนุน
 
 ### ขั้นแรก: ไฟล์เกมของคุณ (ต้องทำก่อน)
 ต้องซื้อ FINAL FANTASY VII **บน Steam** (เวอร์ชันที่ขายปัจจุบัน) ไฟล์เกมเป็นเวอร์ชัน Windows เอามาไว้ใน Mac ได้ 3 วิธี:
