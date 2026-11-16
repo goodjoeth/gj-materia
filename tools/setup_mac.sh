@@ -20,7 +20,8 @@ pin() {   # pin <name> <url> <rev> <patch dir or ->
       (cd "$dir" && while IFS= read -r f; do perl -pi -e 's/\r$//' "$f"; done)
   fi
   if [ "$4" != "-" ]; then
-    for p in $(ls "$ROOT/$4"/*.patch 2>/dev/null | sort); do
+    for p in "$ROOT/$4"/*.patch; do       # (a glob, sorted, and safe with spaces in the path)
+      [ -f "$p" ] || continue
       git -C "$dir" apply "$p"
       echo "  applied $1/$(basename "$p")"
     done

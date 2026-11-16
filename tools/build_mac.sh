@@ -5,8 +5,9 @@
 #
 # usage: bash tools/build_mac.sh "/path/to/FINAL FANTASY VII Steam Edition"
 #
-# Needs: macOS 13+, Xcode or the Command Line Tools (xcode-select --install), Homebrew's cmake and
-# ninja (brew install cmake ninja), Python 3 with capstone (python3 -m pip install --user capstone).
+# Needs: macOS 13+, Xcode or the Command Line Tools (xcode-select --install), cmake and ninja
+# (brew install cmake ninja), Python 3 with capstone (python3 -m pip install --user capstone).
+# GJ Materia Installer (installer/, tools/make_installer.sh) sets all of that up by itself.
 # Takes about 15-30 minutes the first time; re-running carries on where it stopped.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -73,8 +74,9 @@ step "5/8 FFmpeg (movies)"
 step "6/8 shaders (bgfx shaderc, Metal)"
 if [ ! -x external/bgfx/.build/osx-arm64/bin/shadercRelease ] && [ ! -x external/bgfx/.build/osx-x64/bin/shadercRelease ]; then
   (cd external/bgfx && xattr -d com.apple.quarantine ../bx/tools/bin/darwin/genie 2>/dev/null || true
-   ../bx/tools/bin/darwin/genie --with-tools --gcc=osx-arm64 gmake >/dev/null
-   make -C .build/projects/gmake-osx-arm64 config=release shaderc -j"$(sysctl -n hw.ncpu)" >/dev/null)
+   HOSTARCH=$([ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ] && echo osx-arm64 || echo osx-x64)   # an Intel Mac builds x64
+   ../bx/tools/bin/darwin/genie --with-tools --gcc=$HOSTARCH gmake >/dev/null
+   make -C .build/projects/gmake-$HOSTARCH config=release shaderc -j"$(sysctl -n hw.ncpu)" >/dev/null)
 fi
 [ -f build/shaders-mtl/FFNx.flat.mtl.frag ] || bash tools/compile_shaders_mac.sh | tail -1
 
