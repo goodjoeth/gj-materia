@@ -85,7 +85,7 @@ following what is on screen, on any controller the Mac can rumble (DualSense, Du
   magic, summons and Limit Breaks hit harder; a party member falling is a long, full rumble.
 * **The field**: the screen's shakes (explosions, earthquakes, the plate falling) as strong as the
   shake, easing off when a scene leaves it running.
-* **Minigames**: crashes, hits and landings in G-Bike, the chocobo races, snowboarding, Fort
+* **Minigames** (new, still being tuned): crashes, hits and landings in G-Bike, the chocobo races, snowboarding, Fort
   Condor, the submarine and the Speed Square, from their sound effects.
 * Off, light or strong in Settings.
 
@@ -248,7 +248,7 @@ GJ Materia แปลงครั้งเดียวล่วงหน้าบ
 ### ม็อดเทียบกัน และจอยสั่น
 ภาพเทียบด้านบน (หัวข้อ Mods, side by side): เซฟเดียวกันแบบไม่มีม็อด, ม็อดชุดที่ 1 และชุดที่ 2 ทุกม็อดโหลดจาก catalog ของ 7th Heaven ผ่าน launcher
 
-**จอยสั่น (จุดเด่น):** FF7 เวอร์ชัน PC ไม่เคยมีจอยสั่น และ FFNx ทำไว้ให้เฉพาะ FF8 GJ Materia เพิ่มให้ตามสิ่งที่เกิดบนจอ ใช้ได้กับจอยที่สั่นบน Mac (DualSense, DualShock 4, Xbox): ตีโดนหรือโดนตีสั่นทุกครั้ง เวทแรง/อัญเชิญ/Limit Break สั่นหนักกว่า สมาชิกล้มสั่นยาว ฉากสั่น (ระเบิด แผ่นดินไหว) สั่นตามความแรง และมินิเกม (G-Bike แข่งช็อกโกโบ สโนว์บอร์ด Fort Condor เรือดำน้ำ Speed Square) สั่นตามเสียงชนและกระแทก ปรับ ปิด/เบา/แรง ได้
+**จอยสั่น (จุดเด่น):** FF7 เวอร์ชัน PC ไม่เคยมีจอยสั่น และ FFNx ทำไว้ให้เฉพาะ FF8 GJ Materia เพิ่มให้ตามสิ่งที่เกิดบนจอ ใช้ได้กับจอยที่สั่นบน Mac (DualSense, DualShock 4, Xbox): ตีโดนหรือโดนตีสั่นทุกครั้ง เวทแรง/อัญเชิญ/Limit Break สั่นหนักกว่า สมาชิกล้มสั่นยาว ฉากสั่น (ระเบิด แผ่นดินไหว) สั่นตามความแรง และมินิเกม (ใหม่ ยังปรับจูนอยู่: G-Bike แข่งช็อกโกโบ สโนว์บอร์ด Fort Condor เรือดำน้ำ Speed Square) สั่นตามเสียงชนและกระแทก ปรับ ปิด/เบา/แรง ได้
 
 ### แผนงานต่อไป (Roadmap)
 - **จอยสั่นเพิ่ม**: หัวใจเต้นตอน HP ต่ำ, สั่นตอน Limit พร้อม, รูปแบบตามธาตุ (ไฟ สายฟ้า แผ่นดินไหว), อัญเชิญสั่นตามจังหวะแอนิเมชัน, เสียงเครื่องยนต์เรือเหาะ/รถบั๊กกี้ และไฟ DualSense ตาม HP / Limit กับ adaptive trigger
