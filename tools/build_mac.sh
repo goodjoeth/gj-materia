@@ -11,6 +11,19 @@
 # Takes about 15-30 minutes the first time; re-running carries on where it stopped.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Spaces in the folder's path (an external drive called "My Drive") break the compiler flags and
+# FFmpeg's configure: build through a link without them, ~/.gjmateria, kept for later re-lifts
+case "$ROOT" in *" "*)
+  [ -n "${GJM_VIA_LINK:-}" ] && { echo "the folder still has a space in its path: $ROOT" >&2; exit 1; }
+  LINK="$HOME/.gjmateria"
+  case "$LINK" in *" "*) echo "move this folder to a path without spaces" >&2; exit 1 ;; esac
+  ln -sfn "$ROOT" "$LINK"
+  if [ -f "$ROOT/build/macos/CMakeCache.txt" ] && grep -q "CMAKE_HOME_DIRECTORY:INTERNAL=$ROOT/macos" "$ROOT/build/macos/CMakeCache.txt"; then
+    rm -rf "${ROOT:?}/build/macos"   # configured through the spaced path before
+  fi
+  echo "building through $LINK (no spaces) -> $ROOT"
+  GJM_VIA_LINK=1 exec bash "$LINK/tools/build_mac.sh" "$@" ;;
+esac
 cd "$ROOT"
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 die() { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
@@ -81,8 +94,8 @@ fi
 [ -f build/shaders-mtl/FFNx.flat.mtl.frag ] || bash tools/compile_shaders_mac.sh | tail -1
 
 step "7/8 compiling the app (the first time takes a while)"
-cmake -S macos -B build/macos -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null
-cmake --build build/macos -- -j"$(sysctl -n hw.ncpu)" | grep -E ' error|FAILED' && die "the build failed (see above)" || true
+cmake -S "$ROOT/macos" -B "$ROOT/build/macos" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo >/dev/null
+cmake --build "$ROOT/build/macos" -- -j"$(sysctl -n hw.ncpu)" | grep -E ' error|FAILED' && die "the build failed (see above)" || true
 [ -x "build/macos/GJ Materia.app/Contents/MacOS/GJ Materia" ] || die "the build failed"
 
 step "8/8 done"
