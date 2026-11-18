@@ -105,7 +105,7 @@ if [ -f build/macos/CMakeCache.txt ] && ! grep -q "^FF7_ARCH:STRING=$ARCH$" buil
   rm -rf "${ROOT:?}/build/macos"
 fi
 cmake -S "$ROOT/macos" -B "$ROOT/build/macos" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFF7_ARCH="$ARCH" >/dev/null
-cmake --build "$ROOT/build/macos" -- -j"$(sysctl -n hw.ncpu)" | grep -E ' error|FAILED' && die "the build failed (see above)" || true
+cmake --build "$ROOT/build/macos" -- -j"$(sysctl -n hw.ncpu)" | grep -E ': error:|FAILED:' && die "the build failed (see above)" || true
 [ -x "build/macos/GJ Materia.app/Contents/MacOS/GJ Materia" ] || die "the build failed"
 
 step "8/8 done"

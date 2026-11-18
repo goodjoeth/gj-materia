@@ -3,6 +3,11 @@
 // src/android/un7z.c, src/mac/ff7_mac_main.mm).
 import Foundation
 import Compression
+#if os(iOS)
+import UIKit
+#else
+import AppKit
+#endif
 
 // MARK: native
 
@@ -27,7 +32,11 @@ enum Paths {
     static let fm = FileManager.default
     static let base: URL = {
         if let e = ProcessInfo.processInfo.environment["FF7_HOME"] { return URL(fileURLWithPath: e) }
+        #if os(iOS)
+        return fm.urls(for: .documentDirectory, in: .userDomainMask)[0]   // the Files app shows it
+        #else
         return fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("FF7Recomp")
+        #endif
     }()
     static var game: URL { base.appendingPathComponent("game") }
     static var mods: URL { base.appendingPathComponent("mods") }
@@ -53,7 +62,13 @@ enum Paths {
 
 struct Settings: Codable, Equatable {
     var fps = 3                // FFNx ff7_fps_limiter: 0 original, 1 fixed, 2 30 FPS battles, 3 60, 4 120
-    var aspect = 0             // FFNx aspect_ratio: 0 4:3, 1 stretched, 2 16:9 (with uncrop), 3 16:10, 4 21:9 (an FF7Recomp mode)
+    // FFNx aspect_ratio: 0 4:3, 1 stretched, 2 16:9 (with uncrop), 3 16:10, 4 21:9 (an FF7Recomp mode);
+    // 5 (the launcher's): FFNx's 4 at this screen's own shape (ff7r_wide_width = screenWideWidth)
+    #if os(iOS)
+    var aspect = 5             // iPhone / iPad: the screen's own shape
+    #else
+    var aspect = 0
+    #endif
     var fullscreen = false
     var vsync = true
     var showFps = false
@@ -120,6 +135,18 @@ struct Settings: Codable, Equatable {
 
 enum Toml {
     /// `key = value` replaced (or appended).
+    /// "Fit the screen": the game's width at a height of 480 for this screen's shape held sideways
+    /// (an iPad mini ~730, an iPhone ~1044, a 16:10 Mac 768), even.
+    static var screenWideWidth: Int {
+        #if os(iOS)
+        let b = UIScreen.main.nativeBounds.size
+        #else
+        let b = NSScreen.main?.frame.size ?? CGSize(width: 16, height: 10)
+        #endif
+        let r = max(b.width, b.height) / max(1, min(b.width, b.height))
+        return min(1400, max(660, Int((480 * r / 2).rounded()) * 2))
+    }
+
     static func set(_ toml: String, _ key: String, _ value: String) -> String {
         var lines = toml.components(separatedBy: "\n")
         var found = false
@@ -152,7 +179,8 @@ enum Toml {
         t = set(t, "show_renderer_backend", "false")
         t = set(t, "ff7_fps_limiter", String(s.speed2x && s.fps > 3 ? 3 : s.fps))
         t = set(t, "speedhack_min", s.speed2x ? "2.0" : "1.0")
-        t = set(t, "aspect_ratio", String(s.aspect))
+        t = set(t, "aspect_ratio", String(s.aspect == 5 ? 4 : s.aspect))
+        t = set(t, "ff7r_wide_width", String(s.aspect == 5 ? Self.screenWideWidth : 1138))
         t = set(t, "enable_uncrop", s.aspect != 0 ? "true" : "false")
         t = set(t, "enable_vsync", s.vsync ? "true" : "false")
         t = set(t, "show_fps", s.showFps ? "true" : "false")

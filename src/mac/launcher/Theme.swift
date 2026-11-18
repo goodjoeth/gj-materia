@@ -124,6 +124,7 @@ struct GoldText: View {
         Text(text)
             .font(.system(size: size, weight: .bold, design: .serif))
             .tracking(size * 0.04)
+            .lineLimit(1).minimumScaleFactor(0.4)   // an iPhone held upright
             .foregroundStyle(Theme.goldGradient)
             .shadow(color: .black.opacity(0.8), radius: 2, y: 2)
             .shadow(color: Theme.ember.opacity(0.25), radius: 18)
@@ -170,7 +171,15 @@ struct GoldChoice<T: Hashable>: View {
     @Binding var selection: T
     let options: [(T, String)]
     var body: some View {
-        HStack(spacing: 4) {
+        // side by side where they fit, else one above the other (an iPhone held upright)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) { buttons }.padding(4).background(Capsule().fill(.black.opacity(0.45)))
+                .overlay(Capsule().strokeBorder(Theme.gold.opacity(0.35), lineWidth: 1))
+            VStack(spacing: 4) { buttons }.padding(6).background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.45)))
+                .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.gold.opacity(0.35), lineWidth: 1))
+        }
+    }
+    @ViewBuilder var buttons: some View {
             ForEach(options, id: \.0) { value, title in
                 Button { selection = value } label: {
                     Text(title).font(.system(size: 13, weight: .semibold))
@@ -181,9 +190,58 @@ struct GoldChoice<T: Hashable>: View {
                 }
                 .buttonStyle(.plain)
             }
+    }
+}
+
+/// Side by side where it fits, else stacked (the launcher on an iPhone).
+struct AdaptiveStack<Content: View>: View {
+    var spacing: CGFloat = 8
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: spacing) { content() }
+            VStack(spacing: spacing) { content() }
         }
-        .padding(4)
-        .background(Capsule().fill(.black.opacity(0.45)))
-        .overlay(Capsule().strokeBorder(Theme.gold.opacity(0.35), lineWidth: 1))
+    }
+}
+
+extension View {
+    /// A fixed size on the Mac (sheets, panels); on an iPhone / iPad at most that, to fit the screen.
+    @ViewBuilder func macFrame(width: CGFloat? = nil, height: CGFloat? = nil, alignment: Alignment = .center) -> some View {
+        #if os(macOS)
+        self.frame(width: width, height: height, alignment: alignment)
+        #else
+        self.frame(maxWidth: width, maxHeight: height, alignment: alignment)
+        #endif
+    }
+    /// iPhone / iPad: the page scrolls when it is taller than the screen (a Mac window is sized for it).
+    @ViewBuilder func scrollsOnIOS() -> some View {
+        #if os(iOS)
+        ScrollView { self.padding(.horizontal, 12) }
+        #else
+        self
+        #endif
+    }
+}
+
+extension View {
+    /// A button drawn as a link (macOS's .link style; iOS has none, so a borderless button).
+    @ViewBuilder func linkButtonStyle() -> some View {
+        #if os(macOS)
+        self.buttonStyle(.link)
+        #else
+        self.buttonStyle(.borderless)
+        #endif
+    }
+}
+
+/// "Mac", "iPad" or "iPhone", for the words that name the device ("this Mac").
+enum Device {
+    static var name: String {
+        #if os(macOS)
+        "Mac"
+        #else
+        UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+        #endif
     }
 }

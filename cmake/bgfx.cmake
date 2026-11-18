@@ -20,7 +20,9 @@ set(FF7_BX_DEFS BX_CONFIG_DEBUG=0 __STDC_LIMIT_MACROS __STDC_FORMAT_MACROS __STD
 
 add_library(bx STATIC "${BX_DIR}/src/amalgamated.cpp")
 target_include_directories(bx PUBLIC "${BX_DIR}/include" "${BX_DIR}/3rdparty")
-if(APPLE)
+if(IOS)
+  target_include_directories(bx PUBLIC "${BX_DIR}/include/compat/ios")
+elseif(APPLE)
   target_include_directories(bx PUBLIC "${BX_DIR}/include/compat/osx")
 endif()
 target_compile_definitions(bx PUBLIC ${FF7_BX_DEFS})
@@ -81,7 +83,9 @@ target_compile_definitions(bgfx
           BGFX_CONFIG_RENDERER_VULKAN_DESCRIPTOR_SETS_PER_POOL=1024)
 target_link_libraries(bgfx PUBLIC bimg_decode bimg bx)
 target_compile_options(bgfx PRIVATE -w)
-if(APPLE)
+if(IOS)
+  target_link_libraries(bgfx PUBLIC "-framework Metal" "-framework QuartzCore" "-framework UIKit" "-framework CoreFoundation" "-framework VideoToolbox" "-framework CoreMedia" "-framework CoreVideo")
+elseif(APPLE)
   target_link_libraries(bgfx PUBLIC "-framework Metal" "-framework QuartzCore" "-framework Cocoa" "-framework IOKit" "-framework CoreFoundation" "-framework VideoToolbox" "-framework CoreMedia" "-framework CoreVideo")
 elseif(ANDROID)
   target_link_libraries(bgfx PUBLIC android log dl EGL GLESv3)   # GLESv3, EGL: the OpenGL ES renderer

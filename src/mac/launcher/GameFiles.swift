@@ -57,6 +57,16 @@ final class GameFiles: ObservableObject {
         defer { busy = nil }
         let fm = Paths.fm
         let roots = [picked, picked.appendingPathComponent("FINAL FANTASY VII Steam Edition"), picked.deletingLastPathComponent()]
+        #if os(iOS)
+        // iPhone / iPad: the app carries the exe it was built from, so a folder with only the game's
+        // data in it does too: "data" itself, or a folder holding it (a Mac's GJ Materia game folder)
+        if !roots.contains(where: { fm.fileExists(atPath: $0.appendingPathComponent("ff7/resources/ff7_1.02/ff7_en").path) }),
+           let data = [picked, picked.appendingPathComponent("data")].first(where: { fm.fileExists(atPath: $0.appendingPathComponent("field").path) || fm.fileExists(atPath: $0.appendingPathComponent("lang-en").path) }),
+           let exe = Bundle.main.url(forResource: "ff7_en", withExtension: "exe") {
+            await copyGame(data: data, exeData: try? Data(contentsOf: exe), cfg: nil)
+            return
+        }
+        #endif
         guard let root = roots.first(where: { fm.fileExists(atPath: $0.appendingPathComponent("ff7/resources/ff7_1.02/ff7_en").path) }) else {
             message = L("ไม่พบไฟล์เกมในโฟลเดอร์นี้ ให้เลือกโฟลเดอร์ “FINAL FANTASY VII Steam Edition” (ที่มีโฟลเดอร์ ff7 อยู่ข้างใน)", "No game files in this folder. Choose the “FINAL FANTASY VII Steam Edition” folder (the one with the ff7 folder inside)."); return
         }
@@ -66,6 +76,13 @@ final class GameFiles: ObservableObject {
         if let want = Self.expectedSHA1, Self.sha1(exeData) != want {
             message = L("ไฟล์เกมนี้ต่างจากที่แอปนี้ถูก build มา (ต้อง build แอปใหม่จากโฟลเดอร์นี้ด้วย tools/build_mac.sh)", "These game files differ from the ones this app was built from (rebuild the app from this folder with tools/build_mac.sh)"); return
         }
+        await copyGame(data: data, exeData: exeData, cfg: root.appendingPathComponent("ff7/workingdir/ff7input.cfg"))
+    }
+
+    /// The data folder and the exe into the game folder (a fresh copy, swapped in at the end).
+    private func copyGame(data: URL, exeData: Data?, cfg: URL?) async {
+        let fm = Paths.fm
+        guard let exeData else { message = L("อ่าน ff7_en ไม่ได้", "Can't read ff7_en"); return }
         busy = L("กำลังก๊อปไฟล์เกม…", "Copying the game files…")
         let ok = await Task.detached { () -> String? in
             do {
@@ -93,9 +110,8 @@ final class GameFiles: ObservableObject {
                 let exeTo = Paths.game.appendingPathComponent("ff7_en.exe")
                 try? fm.removeItem(at: exeTo)
                 try exeData.write(to: exeTo)
-                let cfg = root.appendingPathComponent("ff7/workingdir/ff7input.cfg")
                 let cfgTo = Paths.game.appendingPathComponent("ff7input.cfg")
-                if fm.fileExists(atPath: cfg.path) && !fm.fileExists(atPath: cfgTo.path) { try? fm.copyItem(at: cfg, to: cfgTo) }
+                if let cfg, fm.fileExists(atPath: cfg.path) && !fm.fileExists(atPath: cfgTo.path) { try? fm.copyItem(at: cfg, to: cfgTo) }
                 return nil
             } catch { return error.localizedDescription }
         }.value

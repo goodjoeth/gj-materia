@@ -12,6 +12,7 @@ import AppKit
 final class PadInput: ObservableObject {
     enum Button { case up, down, left, right, a, b, start, lb, rb }
     var onPress: ((Button) -> Void)?
+    static var suspended = false   // iPhone / iPad: the game runs (LauncherIOS.swift)
     private var timer: Timer?
     private var held: Set<Button> = []
     private var repeatAt: [Button: Date] = [:]
@@ -25,6 +26,7 @@ final class PadInput: ObservableObject {
 
     /// Edge-triggered presses, with auto-repeat for the D-pad.
     private func poll() {
+        if Self.suspended { held = []; return }
         var now: Set<Button> = []
         for c in GCController.controllers() {
             guard let g = c.extendedGamepad else { continue }

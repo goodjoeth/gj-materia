@@ -6,6 +6,8 @@
 import SwiftUI
 #if os(macOS)
 import AppKit
+#else
+import UIKit
 #endif
 
 @_silgen_name("ff7_companion_json") func c_companion_json(_ out: UnsafeMutablePointer<CChar>, _ cap: Int32) -> Int32
@@ -309,7 +311,6 @@ struct AchievementsPanel: View {
     }
 }
 
-#if os(macOS)
 private var overlayModel: OverlayModel?
 
 /// F1 / Select+Triangle (src/mac/ff7_mac_main.mm): open or close the achievements panel.
@@ -327,6 +328,7 @@ public func ff7_overlay_scroll(_ by: Int32) {
     MainActor.assumeIsolated { overlayModel?.scroll = max(0, (overlayModel?.scroll ?? 0) + Int(by)) }
 }
 
+#if os(macOS)
 /// The achievements in a window of their own (the app menu's Achievements…): the game keeps running.
 private var achWindow: NSWindow?
 @_cdecl("ff7_achievements_window")
@@ -357,4 +359,23 @@ public func ff7_overlay_attach(_ view: UnsafeMutableRawPointer) {
         host.addSubview(v)
     }
 }
+#else
+/// Put the overlay over the game's view (src/ios/ff7_ios_main.mm): drawn only, touches go through
+/// to the on-screen pad below.
+@_cdecl("ff7_overlay_attach")
+public func ff7_overlay_attach(_ view: UnsafeMutableRawPointer) {
+    MainActor.assumeIsolated {
+        let host = Unmanaged<UIView>.fromOpaque(view).takeUnretainedValue()
+        let m = OverlayModel()
+        overlayModel = m
+        let vc = UIHostingController(rootView: GameOverlayView(model: m))
+        vc.view.backgroundColor = .clear
+        vc.view.isUserInteractionEnabled = false
+        vc.view.frame = host.bounds
+        vc.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        host.addSubview(vc.view)
+        overlayHost = vc
+    }
+}
+private var overlayHost: UIViewController?
 #endif

@@ -47,7 +47,7 @@ struct AchievementsView: View {
                 Text("Steam").tag(0)
                 Text(L("ชุดออฟไลน์ (RetroAchievements)", "Offline set (RetroAchievements)")).tag(1)
             }
-            .pickerStyle(.segmented).labelsHidden().frame(width: 420).padding(10)
+            .pickerStyle(.segmented).labelsHidden().macFrame(width: 420).padding(10)
             if tab == 0 { SteamView(steam: steam) } else { LocalAchievementsView() }
         }
         .navigationTitle("Achievements")

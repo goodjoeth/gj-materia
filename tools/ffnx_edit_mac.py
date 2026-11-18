@@ -117,10 +117,7 @@ EDITS.extend([
     }
     else if (aspect_ratio == AR_WIDESCREEN_21X9)   // FF7Recomp
     {
-        wide_viewport_x = -249;
-        wide_viewport_width = 1138;
-        wide_game_width = 1138;
-        viewport_width_plus_x_widescreen_fix = 892;
+        ff7r_wide_viewport();
     }'''),
 ('renderer.cpp',
 '''        case AR_WIDESCREEN_16X10:''',
@@ -146,6 +143,36 @@ EDITS.extend([
 '''16 / (aspect_ratio == AR_WIDESCREEN_16X10 ? 10.f : 9.f)''',
 '''(aspect_ratio == AR_WIDESCREEN_21X9 ? (float)wide_game_width / wide_game_height : 16 / (aspect_ratio == AR_WIDESCREEN_16X10 ? 10.f : 9.f))'''),
 ])
+
+# The FPS counter (and FFNx's other corner text) on screen in a window too: FFNx puts it in the
+# window's title unless fullscreen, and the game's window here has no title bar to show it.
+EDITS.append(('common.cpp', '''	newRenderer.drawOverlay();
+
+	if (fullscreen || borderless)''', '''	newRenderer.drawOverlay();
+
+	if (true)   // FF7Recomp: in a window too (fullscreen || borderless)'''))
+
+# The wide mode's width (ff7r_wide_width in FFNx.toml, the launcher's): 1138 for 21:9, or the
+# player's own screen ("Fit the screen": an iPad mini ~730, an iPhone ~1044). The viewport is
+# centred on the game's 640: x = -(width - 640) / 2.
+EDITS.append(('cfg.cpp', '''long aspect_ratio;''', '''long aspect_ratio;
+long ff7r_wide_width;   // FF7Recomp: the wide mode's width (aspect_ratio 4)'''))
+EDITS.append(('cfg.h', '''extern long aspect_ratio;''', '''extern long aspect_ratio;
+extern long ff7r_wide_width;'''))
+EDITS.append(('cfg.cpp', '''	aspect_ratio = config["aspect_ratio"].value_or(0);''', '''	aspect_ratio = config["aspect_ratio"].value_or(0);
+	ff7r_wide_width = config["ff7r_wide_width"].value_or(1138);   // FF7Recomp
+	if (ff7r_wide_width < 660 || ff7r_wide_width > 1400) ff7r_wide_width = 1138;
+	ff7r_wide_width &= ~1;'''))
+EDITS.append(('ff7/widescreen.cpp', '''void ff7_widescreen_hook_init() {''', '''// FF7Recomp: the wide mode's viewport, ff7r_wide_width wide (cfg.cpp)
+static void ff7r_wide_viewport()
+{
+    wide_viewport_x = -(int)(ff7r_wide_width - 640) / 2;
+    wide_viewport_width = (int)ff7r_wide_width;
+    wide_game_width = (int)ff7r_wide_width;
+    viewport_width_plus_x_widescreen_fix = 640 - wide_viewport_x + (ff7r_wide_width >= 854 ? 3 : 0);
+}
+
+void ff7_widescreen_hook_init() {'''))
 
 # 21:9 fields: the camera clamp's half extension (53 = 107 / 2 at 16:9) follows the viewport, and a
 # field wide enough for 16:9 but not for 21:9 still extends -- centred, as far as its background
@@ -176,13 +203,7 @@ EDITS.append(('ff7/widescreen.cpp',
 '''void ff7_widescreen_hook_init() {
     // Field fix''',
 '''void ff7_widescreen_hook_init() {
-    if (aspect_ratio == AR_WIDESCREEN_21X9)   // FF7Recomp: as Widescreen::init, before the patches below
-    {
-        wide_viewport_x = -249;
-        wide_viewport_width = 1138;
-        wide_game_width = 1138;
-        viewport_width_plus_x_widescreen_fix = 892;
-    }
+    if (aspect_ratio == AR_WIDESCREEN_21X9) ff7r_wide_viewport();   // FF7Recomp: as Widescreen::init, before the patches below
     // Field fix'''))
 
 # The frame limiter's sleep: macOS wakes a nanosleep late (timer coalescing), so every frame ran
@@ -329,8 +350,13 @@ EDITS.append(('gl/gl.cpp',
 	static std::vector<struct nvertex> ff7r_moved;
 	extern bool ff7r_replaying_deferred;   // a deferred draw comes back here: moved already
 	extern int ff7r_battle_hud;            // 0 as 16:9 has it, 1 halfway, 2 at the edge (Settings, boosters.txt)
-	const float ff7r_shift = ff7r_battle_hud == 2 ? 142.0f : ff7r_battle_hud == 1 ? 71.0f : 0.0f;
-	if (!ff8 && ff7r_shift > 0 && !ff7r_replaying_deferred && aspect_ratio == AR_WIDESCREEN_21X9 && vertextype == TLVERTEX && mode == MODE_BATTLE && vertexcount && vertexcount % 4 == 0)
+	// wider than 16:9: the setting moves the status group out (all of the extra width, or half);
+	// narrower (Fit this screen on an iPad or a 16:10 Mac): a 16:9 layout would be cut at both
+	// sides, so the band is squeezed into the screen (width / 854), everything in it together
+	const float ff7r_extra = (float)(ff7r_wide_width - 854) / 2.0f;
+	const float ff7r_inward = aspect_ratio == AR_WIDESCREEN_21X9 && ff7r_extra < 0 ? -ff7r_extra : 0.0f;
+	const float ff7r_shift = ff7r_inward > 0 ? -ff7r_inward : ff7r_battle_hud == 2 ? ff7r_extra : ff7r_battle_hud == 1 ? ff7r_extra / 2 : 0.0f;
+	if (!ff8 && ff7r_shift != 0 && !ff7r_replaying_deferred && aspect_ratio == AR_WIDESCREEN_21X9 && vertextype == TLVERTEX && mode == MODE_BATTLE && vertexcount && vertexcount % 4 == 0)
 	{
 		bool band = true;
 		for (uint32_t k = 0; k < vertexcount && band; k++) band = vertices[k]._.y >= 330.0f;
@@ -349,16 +375,25 @@ EDITS.append(('gl/gl.cpp',
 				if (x0 < 310.0f && x1 > 330.0f && y1 - y0 > 2.0f) ff7r_whole_until = ff7r_now + std::chrono::milliseconds(400);
 			}
 		if (ff7r_now < ff7r_whole_until) band = false;
+		auto qx0 = [&](uint32_t q) { return std::min(std::min(vertices[q]._.x, vertices[q + 1]._.x), std::min(vertices[q + 2]._.x, vertices[q + 3]._.x)); };
+		auto qx1 = [&](uint32_t q) { return std::max(std::max(vertices[q]._.x, vertices[q + 1]._.x), std::max(vertices[q + 2]._.x, vertices[q + 3]._.x)); };
 		bool any = false;
 		if (band)
 			for (uint32_t q = 0; q < vertexcount && !any; q += 4)
-				any = std::min(std::min(vertices[q]._.x, vertices[q + 1]._.x), std::min(vertices[q + 2]._.x, vertices[q + 3]._.x)) >= 320.0f;
+				any = qx0(q) >= 320.0f || (ff7r_inward > 0 && qx1(q) <= 320.0f);
 		if (any)
 		{
 			ff7r_moved.assign(vertices, vertices + vertexcount);
 			for (uint32_t q = 0; q < vertexcount; q += 4)
-				if (std::min(std::min(vertices[q]._.x, vertices[q + 1]._.x), std::min(vertices[q + 2]._.x, vertices[q + 3]._.x)) >= 320.0f)
+			{
+				if (ff7r_inward > 0)   // narrower: the whole band squeezed into the screen, about x 320
+				{
+					const float k16 = (float)ff7r_wide_width / 854.0f;
+					for (uint32_t k = q; k < q + 4; k++) ff7r_moved[k]._.x = 320.0f + (ff7r_moved[k]._.x - 320.0f) * k16;
+				}
+				else if (qx0(q) >= 320.0f)
 					for (uint32_t k = q; k < q + 4; k++) ff7r_moved[k]._.x += ff7r_shift;
+			}
 			vertices = ff7r_moved.data();
 		}
 	}

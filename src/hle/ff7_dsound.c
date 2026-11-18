@@ -168,7 +168,11 @@ static OSStatus mix_cb(void *user, AudioUnitRenderActionFlags *flags, const Audi
 
 static int mixer_start(void) {
     if (g_stream) return 0;
+#if TARGET_OS_IPHONE
+    AudioComponentDescription d = { kAudioUnitType_Output, kAudioUnitSubType_RemoteIO,   /* iOS: the audio session's output */
+#else
     AudioComponentDescription d = { kAudioUnitType_Output, kAudioUnitSubType_DefaultOutput,
+#endif
                                     kAudioUnitManufacturer_Apple, 0, 0 };
     AudioComponent c = AudioComponentFindNext(NULL, &d);
     if (!c || AudioComponentInstanceNew(c, &g_unit) != noErr) { fprintf(stderr, "[dsound] no CoreAudio output\n"); return -1; }

@@ -27,6 +27,9 @@ final class LauncherState: ObservableObject {
     init() {
         downloads.library = library
         GameFiles.installRuntime()          // this build's shaders and FFNx tables into the game folder
+        #if os(iOS)
+        Task.detached { CloudSaves.sync() }  // saves made on another device, and this one's from a game the app was closed in
+        #endif
         if steam.signedIn { Task { await steam.sync() } }   // unlocks from the last session, fresh state
         Task {
             await catalog.load()                             // for the "new version" notices
@@ -71,6 +74,8 @@ final class LauncherState: ObservableObject {
         window?.orderOut(nil)
         settings.display.withCString { c_start_game(Int32(settings.aspect), settings.fullscreen ? 1 : 0, $0) }
         window?.close()
+        #else
+        c_start_game(Int32(settings.aspect), 1, "")   // iPhone / iPad: the game view replaces the launcher
         #endif
     }
 }
@@ -163,6 +168,9 @@ struct LauncherView: View {
                 .tag(p)
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190)
+            #if os(iOS)
+            .navigationTitle("GJ Materia")
+            #else
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 4) {
                     #if os(macOS)
@@ -172,6 +180,7 @@ struct LauncherView: View {
                 }
                 .padding(.bottom, 12)
             }
+            #endif
         } detail: {
             switch pane ?? .play {
             case .play: PlayView(state: state, library: state.library)
@@ -186,7 +195,9 @@ struct LauncherView: View {
         }
         .scrollContentBackground(.hidden)
         .background { if pane != .play && pane != nil { StarField(dim: true) } }
+        #if os(macOS)
         .frame(minWidth: 980, minHeight: 640)
+        #endif
         .tint(Theme.gold)
     }
 }
@@ -221,7 +232,7 @@ struct UpdatesBanner: View {
                     Image(systemName: "arrow.down.circle.fill").foregroundStyle(.orange)
                     Text(L("ม็อดมีเวอร์ชันใหม่ \(ups.count) ตัว", "\(ups.count) mods have a new version")).fontWeight(.semibold)
                     Spacer()
-                    Button(open ? L("ซ่อน", "Hide") : L("ดู", "Show")) { open.toggle() }.buttonStyle(.link)
+                    Button(open ? L("ซ่อน", "Hide") : L("ดู", "Show")) { open.toggle() }.linkButtonStyle()
                     Button(L("อัปเดตทั้งหมด", "Update all")) { ups.forEach(downloads.start) }.controlSize(.small)
                 }
                 if open {
@@ -235,7 +246,7 @@ struct UpdatesBanner: View {
                     }
                 }
             }
-            .padding(12).frame(width: 520)
+            .padding(12).macFrame(width: 520)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
         }
     }
@@ -310,9 +321,20 @@ struct PlayView: View {
             if !Paths.gameReady || state.gameFiles.dataLinkedTo != nil || !state.gameFiles.exeMatches {
                 GameFilesBox(files: state.gameFiles).glassCard().frame(maxWidth: 640)
             }
-            GoldChoice(selection: $state.settings.start, options: [("title", L("หน้าไตเติล", "Title screen")), ("newgame", L("เกมใหม่ทันที", "New game right away")), ("continue", L("เล่นต่อจากเซฟล่าสุด", "Continue from the last save"))])
+            #if os(iOS)
+            let parked = c_game_parked() != 0   // the game left with ★ / Select+Start: Play goes back to it
+            #else
+            let parked = false
+            #endif
+            if parked {
+                Text(L("เกมพักไว้อยู่ กด “เล่นต่อ” เพื่อกลับไปตรงที่ค้างไว้ (ม็อดและการตั้งค่าที่เปลี่ยนจะมีผลเมื่อปิดแอปแล้วเปิดใหม่)",
+                       "The game is paused. Press Resume to go back where you were (changes to mods and settings apply once the app is closed and opened again)."))
+                    .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 520)
+            } else {
+                GoldChoice(selection: $state.settings.start, options: [("title", L("หน้าไตเติล", "Title screen")), ("newgame", L("เกมใหม่ทันที", "New game right away")), ("continue", L("เล่นต่อจากเซฟล่าสุด", "Continue from the last save"))])
+            }
             Button(action: state.play) {
-                Label(L("เล่น", "Play"), systemImage: "play.fill")
+                Label(parked ? L("เล่นต่อ", "Resume") : L("เล่น", "Play"), systemImage: "play.fill")
             }
             .buttonStyle(CrimsonButtonStyle()).keyboardShortcut(.defaultAction)
             .disabled(!Paths.gameReady || !state.gameFiles.exeMatches)
@@ -328,7 +350,7 @@ struct PlayView: View {
             UpdatesBanner(catalog: state.catalog, library: library, downloads: state.downloads)
             Spacer()
             Text(L("มีจอย? กดปุ่มใดก็ได้บนจอยเพื่อเข้าโหมดทีวี", "Got a controller? Press any button on it for TV mode")).font(.caption).foregroundStyle(Theme.goldLight.opacity(0.6))
-            HStack {
+            AdaptiveStack {
                 Button(L("เปิดโฟลเดอร์เกม", "Open the game folder")) { openURL(Paths.base) }
                 Button(L("เปิด log ล่าสุด", "Open the latest log")) { openURL(Paths.log) }
                 Button(L("รายงานปัญหา…", "Report a problem…")) {
@@ -340,18 +362,19 @@ struct PlayView: View {
             .buttonStyle(.plain).foregroundStyle(Theme.goldLight).font(.callout.weight(.medium)).padding(.bottom)
             .fileExporter(isPresented: Binding(get: { reportDoc != nil }, set: { if !$0 { reportDoc = nil } }), document: reportDoc,
                           contentType: .zip, defaultFilename: "GJMateria-report.zip") { _ in reportDoc = nil }
-            .alert(L("กำลังเล่นอยู่ที่เครื่องอื่น?", "Playing on another Mac?"), isPresented: Binding(get: { state.otherPlaying != nil }, set: { if !$0 { state.otherPlaying = nil } })) {
-                Button(L("เล่นต่อที่เครื่องนี้", "Play on this Mac")) { state.playNow() }
+            .alert(L("กำลังเล่นอยู่ที่เครื่องอื่น?", "Playing on another device?"), isPresented: Binding(get: { state.otherPlaying != nil }, set: { if !$0 { state.otherPlaying = nil } })) {
+                Button(L("เล่นต่อที่เครื่องนี้", "Play on this \(Device.name)")) { state.playNow() }
                 Button(L("ยกเลิก", "Cancel"), role: .cancel) { state.otherPlaying = nil }
             } message: {
                 let dev = state.otherPlaying?.device ?? "", when = state.otherPlaying?.since.formatted(date: .omitted, time: .shortened) ?? ""
                 Text(L("“\(dev)” เริ่มเล่นไว้เมื่อ \(when) และยังไม่ได้ปิดเกม ถ้าเล่นพร้อมกันสองเครื่อง เครื่องที่เซฟทีหลังจะทับอีกเครื่อง (เซฟก่อนหน้าสำรองไว้ใน save-backups ทุกครั้งที่กดเล่น)",
-                       "“\(dev)” started playing at \(when) and hasn't closed the game. If two Macs play at once, the one that saves last overwrites the other (the saves before are backed up in save-backups each time you press Play)."))
+                       "“\(dev)” started playing at \(when) and hasn't closed the game. If two devices play at once, the one that saves last overwrites the other (the saves before are backed up in save-backups each time you press Play)."))
             }
             .alert(L("สร้างไฟล์รายงานไม่ได้", "Could not make the report"), isPresented: Binding(get: { reportError != nil }, set: { if !$0 { reportError = nil } })) {
                 Button(L("ตกลง", "OK")) { reportError = nil }
             } message: { Text(reportError ?? "") }
         }
+        .scrollsOnIOS()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(MeteorSky())
         .navigationTitle(L("เล่น", "Play"))
@@ -369,20 +392,26 @@ struct GameFilesBox: View {
             if !Paths.gameReady {
                 Text(L("ยังไม่มีไฟล์เกม: ต้องมี FINAL FANTASY VII เวอร์ชัน Steam ของคุณเอง", "No game files yet: you need your own FINAL FANTASY VII from Steam")).font(.headline).foregroundStyle(.orange)
             } else if !files.exeMatches {
-                Text(L("ไฟล์เกมในเครื่องไม่ตรงกับที่แอปนี้ถูก build มา", "The game files on this Mac don't match the ones this app was built from")).foregroundStyle(.orange)
+                Text(L("ไฟล์เกมในเครื่องไม่ตรงกับที่แอปนี้ถูก build มา", "The game files on this \(Device.name) don't match the ones this app was built from")).foregroundStyle(.orange)
             } else if let l = files.dataLinkedTo {
                 let where_ = l.replacingOccurrences(of: NSHomeDirectory(), with: "~")
                 Text(L("ข้อมูลเกมยังลิงก์ไปที่ \(where_)\nถ้าย้ายหรือลบโฟลเดอร์นั้นเกมจะเปิดไม่ได้ กด “ค้นหา FF7 ในเครื่อง” แล้ว “นำเข้า” เพื่อก๊อปมาเก็บในแอป",
-                       "The game data is still linked to \(where_)\nIf that folder moves or is deleted the game won't start. Press “Find FF7 on this Mac”, then “Import”, to copy it into the app."))
+                       "The game data is still linked to \(where_)\nIf that folder moves or is deleted the game won't start. Press “Find FF7 on this \(Device.name)”, then “Import”, to copy it into the app."))
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
             if let b = files.busy {
-                ProgressView(value: files.progress) { Text(b).font(.caption) }.frame(width: 360)
+                ProgressView(value: files.progress) { Text(b).font(.caption) }.frame(maxWidth: 360)
             } else {
-                HStack {
-                    Button { Task { await files.findGame() } } label: { Label(L("ค้นหา FF7 ในเครื่อง", "Find FF7 on this Mac"), systemImage: "magnifyingglass") }
+                AdaptiveStack {
+                    #if os(macOS)
+                    Button { Task { await files.findGame() } } label: { Label(L("ค้นหา FF7 ในเครื่อง", "Find FF7 on this \(Device.name)"), systemImage: "magnifyingglass") }
                         .buttonStyle(.borderedProminent).disabled(files.searching)
                     Button { picking = true } label: { Label(L("เลือกโฟลเดอร์เอง…", "Choose the folder…"), systemImage: "folder") }
+                    #else
+                    // iPhone / iPad: the folder copied onto the device (Files: iCloud Drive or On My iPhone)
+                    Button { picking = true } label: { Label(L("นำเข้าจากแอปไฟล์…", "Import from Files…"), systemImage: "folder") }
+                        .buttonStyle(.borderedProminent)
+                    #endif
                     Button { showGuide = true } label: { Label(L("วิธีได้ไฟล์เกม", "How to get the game files"), systemImage: "questionmark.circle") }
                 }
                 if files.searching { ProgressView().controlSize(.small) }
@@ -408,7 +437,7 @@ struct GameFilesBox: View {
     }
 }
 
-/// How to get the game's files onto this Mac: they must come from the player's own Steam copy.
+/// How to get the game's files onto this \(Device.name): they must come from the player's own Steam copy.
 struct GameGuideView: View {
     let close: () -> Void
     let steamcmd = """
@@ -438,14 +467,14 @@ struct GameGuideView: View {
                     }
                 }
                 .padding(.leading, 34)
-                step("3", L("กด “ค้นหา FF7 ในเครื่อง” แล้วกด “นำเข้า”", "Press “Find FF7 on this Mac”, then “Import”"), L("แอปจะค้นใน Steam, CrossOver, Whisky, ~/FF7, Downloads, Desktop, Documents และไดรฟ์ภายนอกที่เสียบอยู่ (macOS อาจถามสิทธิ์เข้าถึงโฟลเดอร์ ให้กดอนุญาต) ไฟล์จะถูกก๊อปมาเก็บในแอป หลังนำเข้าแล้วลบโฟลเดอร์ต้นทางได้", "The app looks in Steam, CrossOver, Whisky, ~/FF7, Downloads, Desktop, Documents and connected external drives (macOS may ask for access to a folder; allow it). The files are copied into the app; you can delete the source folder afterwards."))
+                step("3", L("กด “ค้นหา FF7 ในเครื่อง” แล้วกด “นำเข้า”", "Press “Find FF7 on this \(Device.name)”, then “Import”"), L("แอปจะค้นใน Steam, CrossOver, Whisky, ~/FF7, Downloads, Desktop, Documents และไดรฟ์ภายนอกที่เสียบอยู่ (macOS อาจถามสิทธิ์เข้าถึงโฟลเดอร์ ให้กดอนุญาต) ไฟล์จะถูกก๊อปมาเก็บในแอป หลังนำเข้าแล้วลบโฟลเดอร์ต้นทางได้", "The app looks in Steam, CrossOver, Whisky, ~/FF7, Downloads, Desktop, Documents and connected external drives (macOS may ask for access to a folder; allow it). The files are copied into the app; you can delete the source folder afterwards."))
                 Divider()
                 Text(L("ห้ามแชร์ไฟล์เกมหรือแอปที่ build แล้วให้คนอื่น ทุกคนต้องใช้เกมที่ซื้อเอง", "Don't share the game files or the built app: everyone needs a game they bought")).font(.callout).foregroundStyle(.secondary)
                 HStack { Spacer(); Button(L("ปิด", "Close"), action: close).keyboardShortcut(.defaultAction) }
             }
             .padding(24)
         }
-        .frame(width: 700, height: 640)
+        .macFrame(width: 700, height: 640)
     }
 
     func step(_ n: String, _ title: String, _ detail: String?) -> some View {
@@ -485,7 +514,7 @@ struct ReliftView: View {
                 if files.message?.contains(L("เปิดแอปใหม่", "Reopen the app")) == true { Button(L("ปิดแอป", "Quit")) { NSApp.terminate(nil) } }
             }
         }
-        .padding(20).frame(width: 640)
+        .padding(20).macFrame(width: 640)
     }
 }
 #endif
@@ -511,9 +540,10 @@ struct SettingsView: View {
                     Text("16:9 Widescreen").tag(2)
                     Text("16:10").tag(3)
                     Text("21:9 Ultrawide").tag(4)
+                    Text(L("พอดีจอนี้ (\(Toml.screenWideWidth)×480)", "Fit this screen (\(Toml.screenWideWidth)×480)")).tag(5)
                     Text(L("ยืดเต็มหน้าต่าง", "Stretch to the window")).tag(1)
                 }
-                if state.settings.aspect == 4 {
+                if state.settings.aspect == 4 || (state.settings.aspect == 5 && Toml.screenWideWidth > 854) {
                     Picker(L("แถบสถานะฉากต่อสู้ (21:9)", "Battle status bar (21:9)"), selection: $state.settings.battleHud) {
                         Text(L("ตำแหน่งแบบ 16:9 (มองง่าย)", "Where 16:9 has it (easy to see)")).tag(0)
                         Text(L("ขยับออกครึ่งทาง", "Halfway out")).tag(1)
@@ -541,7 +571,7 @@ struct SettingsView: View {
                 Toggle("VSync", isOn: $state.settings.vsync)
                 Toggle(L("แสดง FPS", "Show FPS"), isOn: $state.settings.showFps)
             } header: { Text(L("ภาพ", "Graphics")) } footer: {
-                Text(L("AirPlay: เปิด AirPlay ไปที่ Apple TV/ทีวีจากศูนย์ควบคุมของ Mac แล้วเลือก “ใช้เป็นจอแยก” (ไม่ใช่ mirror) จอนั้นจะขึ้นในรายการ “จอที่ใช้เล่น” เลือกแล้วเปิด “เต็มจอเมื่อเริ่มเกม”  21:9: ฉากต่อสู้ world map และฉากที่กว้างพอจะเต็มจอ ฉากที่ฉากหลังแคบกว่าจะมีขอบดำซ้ายขวา  NTSC-J เป็นฟีเจอร์ของ FFNx (7th Heaven แค่มีปุ่มเปิด)", "AirPlay: from the Mac's Control Center, AirPlay to the Apple TV/TV and choose “Use as Separate Display” (not mirroring); it then appears under “Display”. Pick it and turn on “Full screen at start”.  21:9: battles, the world map and wide enough scenes fill the screen; narrower backgrounds get black bars at the sides.  NTSC-J is an FFNx feature (7th Heaven only has the switch)."))
+                Text(L("AirPlay: เปิด AirPlay ไปที่ Apple TV/ทีวีจากศูนย์ควบคุมของ \(Device.name) แล้วเลือก “ใช้เป็นจอแยก” (ไม่ใช่ mirror) จอนั้นจะขึ้นในรายการ “จอที่ใช้เล่น” เลือกแล้วเปิด “เต็มจอเมื่อเริ่มเกม”  21:9: ฉากต่อสู้ world map และฉากที่กว้างพอจะเต็มจอ ฉากที่ฉากหลังแคบกว่าจะมีขอบดำซ้ายขวา  NTSC-J เป็นฟีเจอร์ของ FFNx (7th Heaven แค่มีปุ่มเปิด)", "AirPlay: from the \(Device.name)'s Control Center, AirPlay to the Apple TV/TV and choose “Use as Separate Display” (not mirroring); it then appears under “Display”. Pick it and turn on “Full screen at start”.  21:9: battles, the world map and wide enough scenes fill the screen; narrower backgrounds get black bars at the sides.  NTSC-J is an FFNx feature (7th Heaven only has the switch)."))
                     .font(.caption)
             }
             Section(L("ความเร็ว", "Speed")) {
@@ -637,7 +667,92 @@ struct MyModsView: View {
     }
     var current: InstalledMod? { library.mods.first { $0.id == selected } }
 
-    var body: some View {
+    func orderNumber(_ m: InstalledMod) -> String { String((library.mods.firstIndex { $0.id == m.id } ?? 0) + 1) }
+
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var hsc
+    @State private var showDetail = false
+
+    /// iPhone / iPad: a list (a Table shows only its first column on a phone), the details below
+    /// on an iPad, in a sheet on an iPhone.
+    var content: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                TextField(L("ค้นหาในม็อดของฉัน", "Search my mods"), text: $search).textFieldStyle(.roundedBorder)
+                Menu {
+                    Button { library.setAll(true) } label: { Label(L("เปิดทั้งหมด", "Turn all on"), systemImage: "checkmark.circle") }
+                    Button { library.setAll(false) } label: { Label(L("ปิดทั้งหมด", "Turn all off"), systemImage: "circle") }
+                    Button { conflicts = library.conflictsSummary } label: { Label(L("ตรวจม็อดชนกัน", "Check for mod conflicts"), systemImage: "exclamationmark.triangle") }
+                } label: { Image(systemName: "ellipsis.circle").font(.title2) }
+                Button { importing = true } label: { Image(systemName: "plus.circle").font(.title2) }
+            }
+            .padding(8)
+            HStack(spacing: 0) {
+                List {
+                    ForEach(shown) { m in
+                        HStack(spacing: 10) {
+                            Toggle("", isOn: Binding(get: { m.enabled }, set: { library.setEnabled(m, $0) })).labelsHidden()
+                            Text(verbatim: orderNumber(m)).font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(minWidth: 18)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 4) {
+                                    Text(m.title).fontWeight(.medium).lineLimit(2)
+                                    if m.info?.error != nil { Image(systemName: "xmark.octagon").foregroundStyle(.red) }
+                                    else if m.info?.unsupported.isEmpty == false { Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange) }
+                                }
+                                Text([m.info?.author, m.info?.category, m.info?.version].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            .opacity(m.enabled ? 1 : 0.5)
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture { selected = m.id; if hsc == .compact { showDetail = true } }
+                        .listRowBackground(selected == m.id ? Theme.gold.opacity(0.18) : Color.clear)
+                    }
+                }
+                .listStyle(.plain)
+                .overlay {
+                    if library.mods.isEmpty {
+                        Text(L("ยังไม่มีม็อด\nกด + เพื่อเพิ่มไฟล์ .7z / .iro / .zip หรือไปที่ “ค้นหาม็อด”", "No mods yet\nPress + to add .7z / .iro / .zip files, or go to “Get mods”"))
+                            .multilineTextAlignment(.center).foregroundStyle(.secondary).padding()
+                    }
+                }
+                VStack(spacing: 14) {
+                    orderButton("arrow.up.to.line", L("ขึ้นบนสุด", "Move to the top"), -2)
+                    orderButton("arrow.up", L("ขึ้น", "Up"), -1)
+                    orderButton("arrow.down", L("ลง", "Down"), 1)
+                    orderButton("arrow.down.to.line", L("ลงล่างสุด", "Move to the bottom"), 2)
+                    Divider().frame(width: 24)
+                    Button { confirmRemove = true } label: { Image(systemName: "trash") }.disabled(current == nil)
+                }
+                .buttonStyle(.borderless).padding(8)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                if let b = library.busy { HStack { ProgressView().controlSize(.small); Text(b).font(.caption) } }
+                if let e = library.lastError { Text(e).foregroundStyle(.red).font(.caption) }
+                Text(L("ม็อดที่อยู่บนชนะเมื่อแก้ไฟล์เดียวกัน · ม็อด User Interface ควรอยู่บนสุด", "The higher mod wins when two change the same file · User Interface mods belong at the top")).font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8).padding(.vertical, 4)
+            if hsc != .compact {
+                Divider()
+                Group {
+                    if let m = current { ModDetail(mod: m, library: library).id(m.id) }
+                    else { Text(L("เลือกม็อดเพื่อดูรายละเอียดและตั้งค่า", "Pick a mod to see its details and options")).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity) }
+                }
+                .frame(minHeight: 260)
+            }
+        }
+        .sheet(isPresented: $showDetail) {
+            NavigationStack {
+                Group { if let m = current { ModDetail(mod: m, library: library).id(m.id) } }
+                    .navigationTitle(current?.title ?? "").navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button(L("เสร็จ", "Done")) { showDetail = false } } }
+            }
+            .preferredColorScheme(.dark).tint(Theme.gold)
+        }
+    }
+    #else
+    var content: some View {
         VSplitView {
             VStack(spacing: 0) {
                 HStack {
@@ -658,7 +773,7 @@ struct MyModsView: View {
                         TableColumn("") { m in
                             Toggle("", isOn: Binding(get: { m.enabled }, set: { library.setEnabled(m, $0) })).labelsHidden()
                         }.width(28)
-                        TableColumn("#") { m in Text("\((library.mods.firstIndex { $0.id == m.id } ?? 0) + 1)").foregroundStyle(.secondary) }.width(26)
+                        TableColumn("#") { (m: InstalledMod) in Text(verbatim: orderNumber(m)).foregroundStyle(.secondary) }.width(26)
                         TableColumn(L("ชื่อ", "Name")) { m in
                             HStack {
                                 Text(m.title).fontWeight(.medium)
@@ -701,6 +816,11 @@ struct MyModsView: View {
             }
             .frame(minHeight: 260)
         }
+    }
+    #endif
+
+    var body: some View {
+        content
         .navigationTitle(L("ม็อดของฉัน", "My mods"))
         .onDrop(of: [.fileURL], isTargeted: nil) { providers in
             for p in providers {
@@ -714,13 +834,15 @@ struct MyModsView: View {
                 Task { await library.install(u); if ok { u.stopAccessingSecurityScopedResource() } }
             }
         }
+        #if os(macOS)
         .sheet(isPresented: $reliftSheet) { if let g = gameFiles { ReliftView(files: g) { reliftSheet = false } } }
+        #endif
         .alert(L("ม็อดชนกัน", "Mod conflicts"), isPresented: Binding(get: { conflicts != nil }, set: { if !$0 { conflicts = nil } })) {
             Button(L("ตกลง", "OK")) { conflicts = nil }
         } message: { Text(conflicts?.isEmpty == false ? conflicts! : L("ไม่พบม็อดที่แก้ไฟล์เดียวกัน", "No two mods change the same file")) }
         .confirmationDialog(L("ลบ \(current?.title ?? "-")?", "Delete \(current?.title ?? "-")?"), isPresented: $confirmRemove) {
             Button(L("ลบ", "Delete"), role: .destructive) { if let m = current { library.remove(m); selected = nil } }
-        } message: { Text(L("ไฟล์ม็อดจะถูกลบออกจากเครื่อง", "The mod's files will be deleted from this Mac")) }
+        } message: { Text(L("ไฟล์ม็อดจะถูกลบออกจากเครื่อง", "The mod's files will be deleted from this \(Device.name)")) }
     }
 
     func orderButton(_ icon: String, _ help: String, _ how: Int) -> some View {
@@ -750,7 +872,7 @@ struct ModDetail: View {
                     Text(L("ตั้งค่าม็อด (\(mod.info?.options.count ?? 0))", "Mod options (\(mod.info?.options.count ?? 0))")).tag(1)
                     if ex.readme != nil { Text("Readme").tag(2) }
                 }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 330)
+                .pickerStyle(.segmented).labelsHidden().macFrame(width: 330)
             }
             .padding(10)
             Divider()
@@ -764,7 +886,7 @@ struct ModDetail: View {
 
     func info(_ ex: ModExtras) -> some View {
         HStack(alignment: .top, spacing: 16) {
-            LocalImage(url: ex.preview).frame(width: 300, height: 200)
+            LocalImage(url: ex.preview).macFrame(width: 300, height: 200)
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     if let i = mod.info {
@@ -777,7 +899,7 @@ struct ModDetail: View {
                         if !i.unsupported.isEmpty {
                             Label(L("ส่วนที่ใช้ไม่ได้ในเวอร์ชันนี้: ", "Not supported in this version: ") + i.unsupported.joined(separator: ", "), systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                         }
-                        if let l = URL(string: i.link), !i.link.isEmpty { Button(L("หน้าเว็บของม็อด", "Mod's web page")) { openURL(l) }.buttonStyle(.link) }
+                        if let l = URL(string: i.link), !i.link.isEmpty { Button(L("หน้าเว็บของม็อด", "Mod's web page")) { openURL(l) }.linkButtonStyle() }
                     }
                     Text(L("ไฟล์: \(mod.path)", "File: \(mod.path)")).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 }
@@ -855,7 +977,65 @@ struct CatalogView: View {
         }
     }
 
-    var body: some View {
+    @ViewBuilder var detail: some View {
+        if let id = selected, let m = catalog.mods.first(where: { $0.id == id }) {
+            CatalogDetail(mod: m, downloads: downloads, library: library)
+        } else {
+            Text(L("เลือกม็อดเพื่อดูรายละเอียด", "Pick a mod to see its details")).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var hsc
+    @State private var showDetail = false
+
+    /// iPhone / iPad: the list full width, the details beside it on an iPad, in a sheet on an iPhone.
+    var content: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 6) {
+                TextField(L("ค้นหาชื่อ ผู้สร้าง หรือแท็ก", "Search names, authors or tags"), text: $search).textFieldStyle(.roundedBorder)
+                HStack {
+                    Picker("", selection: $category) {
+                        Text(L("ทุกหมวด", "All categories")).tag("")
+                        ForEach(catalog.categories, id: \.self) { Text($0).tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    Spacer()
+                    Toggle(L("มีอัปเดต", "Updates"), isOn: $onlyUpdates).toggleStyle(.button)
+                    Button { Task { await catalog.load(force: true) } } label: { Image(systemName: "arrow.clockwise") }
+                }
+            }
+            .padding(8)
+            HStack(spacing: 0) {
+                List(filtered) { m in
+                    CatalogRow(mod: m, downloads: downloads, library: library)
+                        .buttonStyle(.borderless)
+                        .contentShape(Rectangle())
+                        .onTapGesture { selected = m.id; if hsc == .compact { showDetail = true } }
+                        .listRowBackground(selected == m.id ? Theme.gold.opacity(0.18) : Color.clear)
+                }
+                .listStyle(.plain)
+                .overlay {
+                    if catalog.loading { ProgressView(L("กำลังโหลด catalog…", "Loading the catalog…")) }
+                    else if let e = catalog.error, catalog.mods.isEmpty { Text(e).foregroundStyle(.red) }
+                }
+                if hsc != .compact {
+                    Divider()
+                    detail.frame(width: 360)
+                }
+            }
+            Text(L("\(filtered.count) ม็อด · จาก catalog ของ 7th Heaven (Qhimm, Sega)", "\(filtered.count) mods · from the 7th Heaven catalogs (Qhimm, Sega)")).font(.caption).foregroundStyle(.secondary).padding(6)
+        }
+        .sheet(isPresented: $showDetail) {
+            NavigationStack {
+                detail.navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button(L("เสร็จ", "Done")) { showDetail = false } } }
+            }
+            .preferredColorScheme(.dark).tint(Theme.gold)
+        }
+    }
+    #else
+    var content: some View {
         HSplitView {
             VStack(spacing: 0) {
                 HStack {
@@ -878,15 +1058,13 @@ struct CatalogView: View {
                 Text(L("\(filtered.count) ม็อด · จาก catalog ของ 7th Heaven (Qhimm, Sega)", "\(filtered.count) mods · from the 7th Heaven catalogs (Qhimm, Sega)")).font(.caption).foregroundStyle(.secondary).padding(6)
             }
             .frame(minWidth: 420)
-            Group {
-                if let id = selected, let m = catalog.mods.first(where: { $0.id == id }) {
-                    CatalogDetail(mod: m, downloads: downloads, library: library)
-                } else {
-                    Text(L("เลือกม็อดเพื่อดูรายละเอียด", "Pick a mod to see its details")).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-            .frame(minWidth: 320)
+            detail.frame(minWidth: 320)
         }
+    }
+    #endif
+
+    var body: some View {
+        content
         .navigationTitle(L("ค้นหาม็อด", "Get mods"))
         .task { await catalog.load() }
     }
@@ -976,7 +1154,7 @@ struct CatalogDetail: View {
                 InstallButton(mod: mod, downloads: downloads, library: library)
                 Text(mod.description).textSelection(.enabled)
                 if !mod.releaseNotes.isEmpty { Text(L("มีอะไรใหม่", "What's new")).font(.headline); Text(mod.releaseNotes).font(.callout) }
-                if let l = URL(string: mod.link), !mod.link.isEmpty { Button(L("หน้าเว็บของม็อด", "Mod's web page")) { openURL(l) }.buttonStyle(.link) }
+                if let l = URL(string: mod.link), !mod.link.isEmpty { Button(L("หน้าเว็บของม็อด", "Mod's web page")) { openURL(l) }.linkButtonStyle() }
                 if !mod.tags.isEmpty { Text(mod.tags.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
             }
             .padding()
@@ -1047,6 +1225,7 @@ struct SavesView: View {
     @State private var exportDoc: BytesDocument?
     @State private var exportName = ""
     @State private var confirmDelete: (() -> Void)?
+    @State private var pickingCloud = false
 
     var body: some View {
         Form {
@@ -1056,15 +1235,20 @@ struct SavesView: View {
                     refresh()
                 }))
                 .disabled(cloud.busy || !CloudSaves.available)
+                #if os(iOS)
+                Button(CloudSaves.available ? L("เปลี่ยนโฟลเดอร์ iCloud Drive…", "Change the iCloud Drive folder…") : L("เลือกโฟลเดอร์ iCloud Drive…", "Choose the iCloud Drive folder…")) { pickingCloud = true }
+                    .fileImporter(isPresented: $pickingCloud, allowedContentTypes: [.folder]) { r in if let u = try? r.get() { cloud.choose(u); refresh() } }
+                Text(L("ในแอปไฟล์ เลือก iCloud Drive (หรือโฟลเดอร์ FF7Recomp ในนั้น ที่ Mac ใช้) แล้วกด เปิด", "In Files, pick iCloud Drive (or the FF7Recomp folder in it that the Macs use) and tap Open")).font(.caption).foregroundStyle(.secondary)
+                #endif
                 if let s = cloud.status { Text(s).font(.callout).foregroundStyle(.secondary) }
                 HStack {
                     if CloudSaves.enabled { Button(L("เปิดโฟลเดอร์ใน iCloud Drive", "Open the folder in iCloud Drive")) { openURL(CloudSaves.root) } }
                     Button(L("เปิดเซฟสำรอง", "Open backups")) { openURL(CloudSaves.backups) }
                 }
-                .buttonStyle(.link)
+                .linkButtonStyle()
             } header: { Text("iCloud") } footer: {
                 Text(CloudSaves.available
-                     ? L("ทุก Mac ที่ใช้ Apple ID เดียวกันจะเล่นต่อจากเซฟเดียวกันได้ (iPad ในอนาคตเปิดผ่านแอป Files) อย่าเล่นพร้อมกันสองเครื่อง ถ้ามีเครื่องอื่นเปิดเกมค้างไว้ แอปจะเตือนก่อน และสำรองเซฟไว้ทุกครั้งที่กดเล่น (เก็บ 20 ครั้งล่าสุด)", "Every Mac on the same Apple ID continues from the same saves (an iPad later, through the Files app). Don't play on two at once: if another Mac left the game open, the app warns you first, and the saves are backed up each time you press Play (the last 20 are kept).")
+                     ? L("ทุก Mac, iPhone และ iPad ที่ใช้ Apple ID เดียวกันจะเล่นต่อจากเซฟเดียวกันได้ อย่าเล่นพร้อมกันสองเครื่อง ถ้ามีเครื่องอื่นเปิดเกมค้างไว้ แอปจะเตือนก่อน และสำรองเซฟไว้ทุกครั้งที่กดเล่น (เก็บ 20 ครั้งล่าสุด)", "Every Mac, iPhone and iPad on the same Apple ID continues from the same saves. Don't play on two at once: if another device left the game open, the app warns you first, and the saves are backed up each time you press Play (the last 20 are kept).")
                      : L("iCloud Drive ไม่ได้เปิดอยู่: การตั้งค่าระบบ → [ชื่อคุณ] → iCloud → iCloud Drive", "iCloud Drive is off: System Settings → [your name] → iCloud → iCloud Drive"))
                     .font(.caption)
             }
@@ -1211,7 +1395,7 @@ struct ControlsView: View {
                 }
             }
             Section {
-                Text(L("จอย Xbox, PlayStation และ MFi ที่เชื่อมต่อกับ Mac ใช้ได้ทันที การเปลี่ยนปุ่มจอยทำได้ในเกมที่ Config > Controller", "Xbox, PlayStation and MFi controllers connected to the Mac work right away. Change the controller's buttons in the game, under Config > Controller."))
+                Text(L("จอย Xbox, PlayStation และ MFi ที่เชื่อมต่อกับ Mac ใช้ได้ทันที การเปลี่ยนปุ่มจอยทำได้ในเกมที่ Config > Controller", "Xbox, PlayStation and MFi controllers connected to the \(Device.name) work right away. Change the controller's buttons in the game, under Config > Controller."))
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }

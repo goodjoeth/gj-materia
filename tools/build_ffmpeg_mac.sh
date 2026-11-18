@@ -6,7 +6,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/external/deps/ffmpeg"
 ARCH="${FF7_ARCH:-x86_64}"                     # FF7_ARCH=arm64: the native Apple silicon build
-OUT="$ROOT/build/ffmpeg-mac$([ "$ARCH" = arm64 ] && echo -arm64)"
+# FF7_ARCH=ios / ios-sim: iPhone and iPad (arm64), and the iOS Simulator on an Apple silicon Mac
+case "$ARCH" in
+  ios)     OUT="$ROOT/build/ffmpeg-ios";     ARCH=arm64; SDK=iphoneos;        MIN="-miphoneos-version-min=16.0" ;;
+  ios-sim) OUT="$ROOT/build/ffmpeg-ios-sim"; ARCH=arm64; SDK=iphonesimulator; MIN="-mios-simulator-version-min=16.0" ;;
+  *)       OUT="$ROOT/build/ffmpeg-mac$([ "$ARCH" = arm64 ] && echo -arm64)"; SDK=macosx; MIN="-mmacosx-version-min=12.0" ;;
+esac
+SYSROOT="$(xcrun --sdk $SDK --show-sdk-path)"
 [ -d "$SRC" ] || git -c advice.detachedHead=false clone -q --depth 1 -b n9.0.2 https://github.com/FFmpeg/FFmpeg.git "$SRC"
 mkdir -p "$OUT/build"
 # FFmpeg's configure can't build from a path with spaces ("Out of tree builds are impossible with
@@ -20,7 +26,7 @@ cd "$OUT/build"
 "$SRC/configure" \
   --prefix="$OUT" \
   --arch=$ARCH --enable-cross-compile --target-os=darwin \
-  --cc="clang -arch $ARCH -mmacosx-version-min=12.0" --cxx="clang++ -arch $ARCH -mmacosx-version-min=12.0" \
+  --cc="clang -arch $ARCH -isysroot $SYSROOT $MIN" --cxx="clang++ -arch $ARCH -isysroot $SYSROOT $MIN" \
   --pkg-config=false \
   --enable-static --disable-shared --enable-pic \
   --disable-programs --disable-doc --disable-debug --disable-avdevice --disable-avfilter \

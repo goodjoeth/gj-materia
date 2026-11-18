@@ -592,7 +592,9 @@ extern "C" void ff7_overlay_attach(void *view);   // src/mac/launcher/GameOverla
     NSScreen *target = nil;
     for (NSScreen *sc in [NSScreen screens]) if (screenName.length && [sc.localizedName isEqualToString:screenName]) target = sc;
     NSRect r = aspect == 2 ? NSMakeRect(0, 0, 1600, 900) : aspect == 3 ? NSMakeRect(0, 0, 1440, 900)
-             : aspect == 4 ? NSMakeRect(0, 0, 1707, 720) : NSMakeRect(0, 0, 1280, 960);   // 4: 21:9 (64:27)
+             : aspect == 4 ? NSMakeRect(0, 0, 1707, 720)                                 // 4: 21:9 (64:27)
+             : aspect == 5 ? NSMakeRect(0, 0, 720 * NSScreen.mainScreen.frame.size.width / NSScreen.mainScreen.frame.size.height, 720)   // the screen's shape
+             : NSMakeRect(0, 0, 1280, 960);
     self.window = [[NSWindow alloc] initWithContentRect:r
                                               styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                                                         NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
@@ -697,6 +699,9 @@ static void build_menu(void) {
 int main(int argc, const char **argv) {
     (void)argc; (void)argv;
     @autoreleasepool {
+        // tests (FF7_NO_LAUNCHER) never open the app again when the game ends: a run that can't
+        // boot would otherwise open and close it over and over
+        if (getenv("FF7_NO_LAUNCHER")) g_relaunch.store(false);
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
         build_menu();

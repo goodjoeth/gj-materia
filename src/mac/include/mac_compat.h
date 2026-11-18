@@ -34,6 +34,10 @@ static inline int ff7_mac_getattr_np(pthread_t t, pthread_attr_t *a) {
     return pthread_attr_setstack(a, top - size, size);
 }
 #define pthread_getattr_np(t, a) ff7_mac_getattr_np(t, a)
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#define fdatasync(fd) fsync(fd)   /* not in the iOS SDK */
+#endif
 #ifndef _SC_AVPHYS_PAGES
 #define _SC_AVPHYS_PAGES _SC_PHYS_PAGES   /* GlobalMemoryStatusEx: memory load reads 0 */
 #endif
