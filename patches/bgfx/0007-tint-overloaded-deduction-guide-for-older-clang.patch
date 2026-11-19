@@ -1,0 +1,15 @@
+diff --git a/3rdparty/dawn/src/tint/lang/core/ir/transform/multiplanar_external_texture.cc b/3rdparty/dawn/src/tint/lang/core/ir/transform/multiplanar_external_texture.cc
+index 590e12387..265f256a1 100644
+--- a/3rdparty/dawn/src/tint/lang/core/ir/transform/multiplanar_external_texture.cc
++++ b/3rdparty/dawn/src/tint/lang/core/ir/transform/multiplanar_external_texture.cc
+@@ -45,6 +45,10 @@ template <class... Ts>
+ struct overloaded : Ts... {
+     using Ts::operator()...;
+ };
++// FF7Recomp: the deduction guide, for compilers without C++20 aggregate CTAD (Apple clang < 17,
++// the Command Line Tools of macOS 14 / 15)
++template <class... Ts>
++overloaded(Ts...) -> overloaded<Ts...>;
+ 
+ using MultiplanarTexture = tint::transform::multiplanar::MultiplanarTexture;
+ using YCBCRTexture = tint::transform::multiplanar::YCBCRTexture;

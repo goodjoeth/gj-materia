@@ -78,7 +78,9 @@ echo "ok (building for $ARCH)"
 
 step "2/8 toolkits and libraries (pinned, patched)"
 bash tools/fetch_deps_mac.sh | tail -1        # first: setup's FFNx edits touch a library header too
-[ -d external/FFNx/.git ] && [ -f external/.setup-mac-done ] || { bash tools/setup_mac.sh; touch external/.setup-mac-done; }
+# the externals again whenever the setup or a patch changed (an update, or a fix for a failed build)
+SETUP_KEY=$(cat tools/setup_mac.sh patches/*/*.patch tools/ffnx_edit_mac.py 2>/dev/null | shasum | cut -c1-16)
+[ -d external/FFNx/.git ] && [ "$(cat external/.setup-mac-done 2>/dev/null)" = "$SETUP_KEY" ] || { bash tools/setup_mac.sh; echo "$SETUP_KEY" > external/.setup-mac-done; }
 
 step "3/8 your game files"
 if [ -n "$GAME" ]; then python3 -I tools/import_game.py "$GAME"; fi
