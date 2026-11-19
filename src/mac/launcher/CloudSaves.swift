@@ -106,6 +106,22 @@ final class CloudSaves: ObservableObject {
         #endif
     }
 
+    /// The devices that share the saves, as the iCloud footer names them.
+    static var devicesWordEN: String {
+        #if os(iOS)
+        "Mac, iPhone and iPad"
+        #else
+        "Mac"
+        #endif
+    }
+    static var devicesWordTH: String {
+        #if os(iOS)
+        " Mac, iPhone และ iPad "
+        #else
+        " Mac "
+        #endif
+    }
+
     /// This install's own id: two iPads both called "iPad" are still told apart.
     nonisolated static var deviceID: String {
         if let id = UserDefaults.standard.string(forKey: "deviceID") { return id }

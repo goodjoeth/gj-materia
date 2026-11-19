@@ -1248,7 +1248,7 @@ struct SavesView: View {
                 .linkButtonStyle()
             } header: { Text("iCloud") } footer: {
                 Text(CloudSaves.available
-                     ? L("ทุก Mac, iPhone และ iPad ที่ใช้ Apple ID เดียวกันจะเล่นต่อจากเซฟเดียวกันได้ อย่าเล่นพร้อมกันสองเครื่อง ถ้ามีเครื่องอื่นเปิดเกมค้างไว้ แอปจะเตือนก่อน และสำรองเซฟไว้ทุกครั้งที่กดเล่น (เก็บ 20 ครั้งล่าสุด)", "Every Mac, iPhone and iPad on the same Apple ID continues from the same saves. Don't play on two at once: if another device left the game open, the app warns you first, and the saves are backed up each time you press Play (the last 20 are kept).")
+                     ? L("ทุก\(CloudSaves.devicesWordTH)ที่ใช้ Apple ID เดียวกันจะเล่นต่อจากเซฟเดียวกันได้ อย่าเล่นพร้อมกันสองเครื่อง ถ้ามีเครื่องอื่นเปิดเกมค้างไว้ แอปจะเตือนก่อน และสำรองเซฟไว้ทุกครั้งที่กดเล่น (เก็บ 20 ครั้งล่าสุด)", "Every \(CloudSaves.devicesWordEN) on the same Apple ID continues from the same saves. Don't play on two at once: if another device left the game open, the app warns you first, and the saves are backed up each time you press Play (the last 20 are kept).")
                      : L("iCloud Drive ไม่ได้เปิดอยู่: การตั้งค่าระบบ → [ชื่อคุณ] → iCloud → iCloud Drive", "iCloud Drive is off: System Settings → [your name] → iCloud → iCloud Drive"))
                     .font(.caption)
             }
